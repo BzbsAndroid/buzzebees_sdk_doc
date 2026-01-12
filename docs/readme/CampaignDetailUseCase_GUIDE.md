@@ -36,8 +36,6 @@ fun getDisplayTexts(): CampaignDetailExtractorConfig
 
 ### CampaignDetailExtractorConfig Fields
 
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/services/campaign_detail/CampaignDetailExtractorConfig.kt)
-
 | Category | Field | Default (English) | Thai |
 |----------|-------|-------------------|------|
 | **Button Names** | buttonShopNow | "Shop Now" | "ซื้อเลย" |
@@ -211,7 +209,7 @@ Retrieves detailed information for a specific campaign. Automatically validates 
 | deviceLocale | Device locale       | O         | Int?                |
 | options      | Additional options  | O         | Map<String, String> |
 
-- Response (`CampaignDetails`) [source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/campaign/CampaignDetails.kt)  
+- Response (`CampaignDetails`)
   HTTP status: 200
 
 ### CampaignDetails Entity Fields

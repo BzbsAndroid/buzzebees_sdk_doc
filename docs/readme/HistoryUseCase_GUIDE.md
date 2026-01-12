@@ -38,7 +38,6 @@ fun getDisplayTexts(): HistoryExtractorConfig
 
 ### HistoryExtractorConfig Fields
 
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/services/history/HistoryExtractorConfig.kt)
 
 | Category | Field | Default (English) | Thai |
 |----------|-------|-------------------|------|
@@ -205,8 +204,6 @@ historyService.getHistory(historyForm) { result ->
 ## Purchase Entity
 
 ### Raw Fields from API
-
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/history/Purchase.kt)
 
 | Field Name               | Description                          | Data Type | JSON Field               |
 |--------------------------|--------------------------------------|-----------|--------------------------|

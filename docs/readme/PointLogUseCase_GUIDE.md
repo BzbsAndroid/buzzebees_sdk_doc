@@ -201,8 +201,6 @@ while (hasMore) {
 
 Pre-processed display item with extracted message. **Use this for UI display.**
 
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/point_log/PointLogDisplayItem.kt)
-
 | Field Name     | Description                              | Data Type     |
 |----------------|------------------------------------------|---------------|
 | displayMessage | Pre-extracted message ready to display   | String        |
@@ -245,7 +243,6 @@ Indicates where the `displayMessage` was extracted from:
 
 Configuration for customizing message extraction behavior and display texts.
 
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/services/pointLog/PointLogExtractorConfig.kt)
 
 | Field                    | Description                           | Default                          |
 |--------------------------|---------------------------------------|----------------------------------|
@@ -296,8 +293,6 @@ val result = pointLogService.getPointLog("2025-01", "earn")
 ## PointLog Entity (Raw Data)
 
 Original API response data.
-
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/point_log/PointLog.kt)
 
 | Field Name   | Description                         | Data Type | JSON Field   |
 |--------------|-------------------------------------|-----------|--------------|
