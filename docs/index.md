@@ -114,8 +114,7 @@ The SDK supports the following campaign types:
 | 2.3.1 | Auth Provider              | [source](readme/auth_provider_guide.md)             |
 | 2.4   | Badge UseCase              | [source](readme/BadgeUseCase_GUIDE.md)              |
 | 2.5   | Campaign UseCase           | [source](readme/CampaignUseCase_GUIDE.md)           |
-| 2.5.1 | Campaign Detail UseCase    | [source](readme/CampaignDetailUseCase_GUIDE.md)     |
-| 2.5.2 | Campaign Handling & Validation | [source](readme/CampaignHandling_GUIDE.md)     |
+| 2.5.1 | Campaign Detail            | [source](readme/CampaignDetail_GUIDE.md)            |
 | 2.6   | Cart UseCase               | [source](readme/CartUseCase_GUIDE.md)               |
 | 2.7   | Category UseCase           | [source](readme/CategoryUseCase_GUIDE.md)           |
 | 2.8   | Consent UseCase            | [source](readme/ConsentUseCase_GUIDE.md)            |

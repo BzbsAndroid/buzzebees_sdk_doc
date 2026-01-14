@@ -47,8 +47,7 @@ val historyUseCase = BuzzebeesSDK.instance().history
 | Use Case | Description | Guide |
 |----------|-------------|-------|
 | **Campaign UseCase** | Campaign listing and filtering | [View Guide](./CampaignUseCase_GUIDE.md) |
-| **Campaign Detail UseCase** | Campaign details, variants, redemption | [View Guide](./CampaignDetailUseCase_GUIDE.md) |
-| **Campaign Handling** | Validation flow and error handling | [View Guide](./CampaignHandling_GUIDE.md) |
+| **Campaign Detail** | Campaign details, variants, validation, redemption | [View Guide](./CampaignDetail_GUIDE.md) |
 | **Coupon UseCase** | Coupon management | [View Guide](./CouponUseCase_GUIDE.md) |
 | **Stamp UseCase** | Stamp collection campaigns | [View Guide](./StampUseCase_GUIDE.md) |
 | **Badge UseCase** | Badge and achievement management | [View Guide](./BadgeUseCase_GUIDE.md) |

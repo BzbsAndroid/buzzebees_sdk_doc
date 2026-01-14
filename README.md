@@ -94,7 +94,7 @@ dependencies {
 | 2.3.1 | Auth Provider              | [source](docs/readme/auth_provider_guide.md)             |
 | 2.4   | Badge UseCase              | [source](docs/readme/BadgeUseCase_GUIDE.md)              |
 | 2.5   | Campaign UseCase           | [source](docs/readme/CampaignUseCase_GUIDE.md)           |
-| 2.5.1 | Campaign Handling & Validation | [source](docs/readme/CampaignHandling_GUIDE.md)     |
+| 2.5.1 | Campaign Detail            | [source](docs/readme/CampaignDetail_GUIDE.md)            |
 | 2.6   | Cart UseCase               | [source](docs/readme/CartUseCase_GUIDE.md)               |
 | 2.7   | Category UseCase           | [source](docs/readme/CategoryUseCase_GUIDE.md)           |
 | 2.8   | Consent UseCase            | [source](docs/readme/ConsentUseCase_GUIDE.md)            |
