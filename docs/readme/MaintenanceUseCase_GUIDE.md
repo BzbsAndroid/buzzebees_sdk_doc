@@ -1,70 +1,81 @@
-## MaintenanceUseCase Guide
+# MaintenanceUseCase Guide
 
-This guide shows how to initialize and use every public method in `MaintenanceUseCase`, with suspend
-and callback examples where available. The MaintenanceUseCase provides maintenance status
-information
-for application downtime and service maintenance notifications.
+This guide shows how to use `MaintenanceUseCase` to check if your app should display a maintenance screen or proceed with normal operation.
 
-### Getting an instance
+## Getting an Instance
 
 ```kotlin
-val maintenanceService = BuzzebeesSDK.instance().maintenanceUseCase
+val maintenance = BuzzebeesSDK.instance().maintenance
 ```
 
 ---
 
-### getMaintenance
+## checkMaintenanceStatus
 
-Retrieves maintenance status information by URL.
+Check maintenance status using configured CDN URL and App ID.
 
-- Request (caller-supplied)
+- Response (`MaintenanceResult`)
 
-| Field Name | Description              | Mandatory | Data Type |
-|------------|--------------------------|-----------|-----------|
-| url        | Maintenance endpoint URL | M         | String    |
+### MaintenanceResult
 
-- Response (`Maintenance`)
-  HTTP status: 200
+| Type             | Description                                      |
+|------------------|--------------------------------------------------|
+| UnderMaintenance | App is under maintenance - show maintenance popup |
+| Operational      | App is operational - proceed normally            |
 
-### Maintenance Entity Fields
+### UnderMaintenance Properties
 
-| Field Name          | Description                   | Data Type | JSON Field            |
-|---------------------|-------------------------------|-----------|-----------------------|
-| headerPrimary       | Primary header text           | String?   | header_primary        |
-| buttonTextPrimary   | Primary button text           | String?   | button_text_primary   |
-| headerSecondary     | Secondary header text         | String?   | header_secondary      |
-| messagePrimary      | Primary message content       | String?   | message_primary       |
-| messageSecondary    | Secondary message content     | String?   | message_secondary     |
-| enabled             | Maintenance mode enabled flag | Boolean?  | enabled               |
-| buttonTextSecondary | Secondary button text         | String?   | button_text_secondary |
-| landingUrl          | Landing page URL              | String?   | landing_url           |
+| Property       | Type                      | Description                        |
+|----------------|---------------------------|------------------------------------|
+| maintenance    | Maintenance               | Raw maintenance data from API      |
+| displayContent | MaintenanceDisplayContent | Display content for both languages |
+| buttonAction   | MaintenanceButtonAction   | Action when button is clicked      |
+
+### MaintenanceDisplayContent
+
+| Property     | Type   | Description         |
+|--------------|--------|---------------------|
+| headerTh     | String | Thai header         |
+| messageTh    | String | Thai message        |
+| buttonTextTh | String | Thai button text    |
+| headerEn     | String | English header      |
+| messageEn    | String | English message     |
+| buttonTextEn | String | English button text |
+
+### MaintenanceButtonAction
+
+| Type     | Description                                      |
+|----------|--------------------------------------------------|
+| OpenUrl  | Open URL in browser (when `landing_url` exists)  |
+| CloseApp | Close/Exit the app (when `landing_url` is empty) |
 
 - Usage
 
 ```kotlin
 // Suspend
-val result = maintenanceService.getMaintenance("https://api.example.com/maintenance")
+val result = maintenance.checkMaintenanceStatus()
 
 // Callback
-maintenanceService.getMaintenance("https://api.example.com/maintenance") { result ->
+maintenance.checkMaintenanceStatus { result ->
     when (result) {
-        is MaintenanceResult.Success -> {
-            // Handle successful maintenance info retrieval
-            val maintenance = result.result
-
-            val isEnabled = maintenance.enabled
-            val primaryHeader = maintenance.headerPrimary
-            val primaryMessage = maintenance.messagePrimary
-            val landingUrl = maintenance.landingUrl
-
-            println("Maintenance enabled: $isEnabled")
-            println("Header: $primaryHeader")
-            println("Message: $primaryMessage")
+        is MaintenanceResult.UnderMaintenance -> {
+            // Show maintenance dialog
+            val content = result.displayContent
+            showDialog(
+                header = content.headerTh.ifEmpty { content.headerEn },
+                message = content.messageTh.ifEmpty { content.messageEn },
+                buttonText = content.buttonTextTh.ifEmpty { content.buttonTextEn }
+            )
+            
+            // Handle button action
+            when (val action = result.buttonAction) {
+                is MaintenanceButtonAction.OpenUrl -> openBrowser(action.url)
+                is MaintenanceButtonAction.CloseApp -> finishAffinity()
+            }
         }
-        is MaintenanceResult.Error -> {
-            // Handle error
-            val errorCode = result.error.code
-            val errorMessage = result.error.message
+        is MaintenanceResult.Operational -> {
+            // Proceed to app normally
+            navigateToHome()
         }
     }
 }
@@ -72,57 +83,32 @@ maintenanceService.getMaintenance("https://api.example.com/maintenance") { resul
 
 ---
 
-### getMaintenance
+## checkMaintenanceStatus (Custom URL)
 
-Retrieves maintenance status information by application ID.
+Check maintenance status from a specific URL.
 
-- Request (caller-supplied)
+- Request
 
-| Field Name | Description            | Mandatory | Data Type |
-|------------|------------------------|-----------|-----------|
-| -          | None. SDK supplies application info automatically. | -         | -         |
+| Field | Type   | Mandatory | Description                       |
+|-------|--------|-----------|-----------------------------------|
+| url   | String | M         | Full URL to maintenance JSON file |
 
-- Response (`Maintenance`)
-  HTTP status: 200
-
-### Maintenance Entity Fields
-
-| Field Name          | Description                   | Data Type | JSON Field            |
-|---------------------|-------------------------------|-----------|-----------------------|
-| headerPrimary       | Primary header text           | String?   | header_primary        |
-| buttonTextPrimary   | Primary button text           | String?   | button_text_primary   |
-| headerSecondary     | Secondary header text         | String?   | header_secondary      |
-| messagePrimary      | Primary message content       | String?   | message_primary       |
-| messageSecondary    | Secondary message content     | String?   | message_secondary     |
-| enabled             | Maintenance mode enabled flag | Boolean?  | enabled               |
-| buttonTextSecondary | Secondary button text         | String?   | button_text_secondary |
-| landingUrl          | Landing page URL              | String?   | landing_url           |
+- Response: Same as above
 
 - Usage
 
 ```kotlin
 // Suspend
-val result = maintenanceService.getMaintenance()
+val result = maintenance.checkMaintenanceStatus("https://cdn.example.com/maintenance.json")
 
 // Callback
-maintenanceService.getMaintenance() { result ->
+maintenance.checkMaintenanceStatus("https://cdn.example.com/maintenance.json") { result ->
     when (result) {
-        is MaintenanceResult.Success -> {
-            // Handle successful maintenance info retrieval
-            val maintenance = result.result
-
-            val isEnabled = maintenance.enabled
-            val primaryHeader = maintenance.headerPrimary
-            val primaryMessage = maintenance.messagePrimary
-
-            println("Maintenance enabled: $isEnabled")
-            println("Header: $primaryHeader")
-            println("Message: $primaryMessage")
+        is MaintenanceResult.UnderMaintenance -> {
+            // Show maintenance dialog
         }
-        is MaintenanceResult.Error -> {
-            // Handle error
-            val errorCode = result.error.code
-            val errorMessage = result.error.message
+        is MaintenanceResult.Operational -> {
+            // Proceed normally
         }
     }
 }
@@ -132,7 +118,9 @@ maintenanceService.getMaintenance() { result ->
 
 ## Summary
 
-The MaintenanceUseCase provides maintenance status information functionality within the Buzzebees
-SDK. It offers two methods to retrieve maintenance information either by URL or application ID,
-helping applications handle service maintenance and downtime scenarios with appropriate user
-messaging.
+| Method                        | Description                             |
+|-------------------------------|-----------------------------------------|
+| `checkMaintenanceStatus()`    | Check using configured CDN URL + App ID |
+| `checkMaintenanceStatus(url)` | Check using custom URL                  |
+
+**Note:** If API call fails (network error, 404, invalid JSON), the result defaults to `Operational` to ensure users can always access the app.
