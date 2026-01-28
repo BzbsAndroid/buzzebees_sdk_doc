@@ -768,24 +768,20 @@ fun StatusAndActionView(
         }
 
         is BzbsRedeemCampaignDisplayType.Delivery -> {
-            // Delivery with tracking: Status + Delivery status + Tracking + Optional action
+            // Delivery with tracking: Status + Delivery status + Tracking (No action button)
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             purchase.displayDeliveryStatus?.let { delivery ->
                 StatusBadge(delivery.label, delivery.color)
                 delivery.trackingNo?.let { CopyableTrackingNumber(it) }
             }
-            displayType.actionType?.let {
-                ActionButton(it, purchase.buttonLabel, purchase.isUsed == true, onActionClick)
-            }
+            // No action button for delivery items
         }
 
         is BzbsRedeemCampaignDisplayType.DeliveryNoParcel -> {
-            // Delivery preparing: Status + Delivery status + Optional action
+            // Delivery preparing: Status + Delivery status (No action button)
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             purchase.displayDeliveryStatus?.let { StatusBadge(it.label, it.color) }
-            displayType.actionType?.let {
-                ActionButton(it, purchase.buttonLabel, purchase.isUsed == true, onActionClick)
-            }
+            // No action button for delivery items
         }
 
         is BzbsRedeemCampaignDisplayType.Draw -> {
@@ -954,19 +950,23 @@ fun ActionButton(
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Delivery Item
+### Delivery Item (No Action Button)
+
+Delivery items only show status and tracking information. **No action button is available.**
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ isShipped == true                                                    │
+│   → displayStatus: Redeemed(config.statusRedeemed)                   │
 │   → displayDeliveryStatus: Shipped(config.deliveryStatusShipped, no) │
-│   → displayType: Delivery(actionType)                                │
-│   → buttonLabel: based on actionType (if any)                        │
+│   → displayType: Delivery(null)      ← No action                     │
+│   → buttonLabel: null                                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │ isShipped == false                                                   │
+│   → displayStatus: Redeemed(config.statusRedeemed)                   │
 │   → displayDeliveryStatus: Preparing(config.deliveryStatusPreparing) │
-│   → displayType: DeliveryNoParcel(actionType)                        │
-│   → buttonLabel: based on actionType (if any)                        │
+│   → displayType: DeliveryNoParcel(null)  ← No action                 │
+│   → buttonLabel: null                                                │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
