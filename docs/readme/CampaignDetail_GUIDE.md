@@ -11,8 +11,9 @@ Complete guide for campaign detail retrieval, validation, and redemption using `
 5. [Campaign Types & Button Catalog](#campaign-types--button-catalog)
 6. [Selection Methods](#selection-methods)
 7. [Validation & Error Handling](#validation--error-handling)
-8. [Complete Flow Examples](#complete-flow-examples)
-9. [Entity Reference](#entity-reference)
+8. [Redemption Flow Logic](#redemption-flow-logic)
+9. [Complete Flow Examples](#complete-flow-examples)
+10. [Entity Reference](#entity-reference)
 
 ---
 
@@ -135,37 +136,52 @@ CampaignDetailExtractorConfig.THAI     // Thai
 | Field | English (Default) | Thai |
 |-------|-------------------|------|
 | errorNotAuthenticated | "Not Authenticated" | "กรุณาเข้าสู่ระบบ" |
-| errorInsufficientPoints | "Insufficient points..." | "แต้มไม่เพียงพอ..." |
 | errorCampaignExpired | "Campaign Expired" | "แคมเปญหมดอายุ" |
 | errorCampaignSoldOut | "Campaign sold out" | "สินค้าหมด" |
 | errorCampaignNotLoaded | "Campaign not loaded" | "ไม่พบข้อมูลแคมเปญ" |
-| errorVariantOnlyForBuy | "Variant selection only..." | "เลือกตัวเลือกได้เฉพาะ..." |
+| errorVariantOnlyForBuy | "Variant selection only for BUY campaigns" | "เลือกตัวเลือกได้เฉพาะแคมเปญซื้อ" |
+| errorSubVariantOnlyForBuy | "Sub-variant selection only for BUY campaigns" | "เลือกตัวเลือกย่อยได้เฉพาะแคมเปญซื้อ" |
 | errorVariantOutOfStock | "Selected variant is out of stock" | "ตัวเลือกที่เลือกหมด" |
 | errorSubVariantOutOfStock | "Selected sub-variant is out of stock" | "ตัวเลือกย่อยที่เลือกหมด" |
 | errorSelectVariantFirst | "Please select a variant first" | "กรุณาเลือกตัวเลือกหลักก่อน" |
 | errorQuantityMinimum | "Quantity must be at least 1" | "จำนวนต้องมากกว่า 0" |
-| errorOnlyXAvailable | "Only %d available" | "เหลือเพียง %d ชิ้น" |
-| errorMaxDonateAllowed | "Maximum %d donate allowed" | "บริจาคได้สูงสุด %d" |
-| errorSelectAddress | "Please select a delivery address" | "กรุณาเลือกที่อยู่จัดส่ง" |
-| errorSelectVariant | "Please select a variant" | "กรุณาเลือกตัวเลือก" |
-| errorSelectSubVariant | "Please select a sub-variant" | "กรุณาเลือกตัวเลือกย่อย" |
 | errorTokenRequired | "Token is required" | "กรุณาเข้าสู่ระบบ" |
 | errorAddToCartFailed | "Failed to add to cart" | "เพิ่มในตะกร้าไม่สำเร็จ" |
 | errorRedeemKeyNotFound | "Redeem key not found. Please redeem first." | "ไม่พบรหัสแลก กรุณาแลกสิทธิ์ก่อน" |
+
+#### Address Validation Errors
+
+| Field | English (Default) | Thai |
+|-------|-------------------|------|
+| errorAddressNotRequired | "Address not required for this campaign" | "แคมเปญนี้ไม่ต้องระบุที่อยู่" |
+| errorInvalidAddress | "Invalid address" | "ที่อยู่ไม่ถูกต้อง" |
+| errorInvalidAddressSelected | "Invalid address selected" | "ที่อยู่ที่เลือกไม่ถูกต้อง" |
+| errorSelectAddress | "Please select a delivery address" | "กรุณาเลือกที่อยู่จัดส่ง" |
+| errorAddressRequired | "Address is required" | "กรุณาระบุที่อยู่จัดส่ง" |
+
+#### Selection Validation Errors
+
+| Field | English (Default) | Thai |
+|-------|-------------------|------|
+| errorSelectVariant | "Please select a variant" | "กรุณาเลือกตัวเลือก" |
+| errorSelectSubVariant | "Please select a sub-variant" | "กรุณาเลือกตัวเลือกย่อย" |
+| errorInvalidVariant | "Invalid variant selection" | "ตัวเลือกไม่ถูกต้อง" |
+| errorInvalidQuantity | "Invalid quantity" | "จำนวนไม่ถูกต้อง" |
+| errorInvalidCampaignType | "Invalid campaign type" | "ประเภทแคมเปญไม่ถูกต้อง" |
 
 ### Helper Functions
 
 ```kotlin
 // Format insufficient points error
-config.formatInsufficientPoints(required = 500L, available = 100L)
+config.formatInsufficientPoints(required: Long, available: Long)
 // → "แต้มไม่เพียงพอ ต้องการ: 500, มี: 100"
 
 // Format only X available error
-config.formatOnlyXAvailable(available = 5)
+config.formatOnlyXAvailable(available: Int)
 // → "เหลือเพียง 5 ชิ้น"
 
 // Format max donate allowed error
-config.formatMaxDonateAllowed(max = 10)
+config.formatMaxDonateAllowed(max: Int)
 // → "บริจาคได้สูงสุด 10"
 ```
 
@@ -236,7 +252,7 @@ fun getCampaignDetail(
 |-----------|-------------|----------|------|
 | id | Campaign identifier | Yes | String |
 | deviceLocale | Device locale code | No | Int? |
-| options | Additional options | No | `Map<String, String>` |
+| options | Additional options | No | Map<String, String> |
 
 #### Response
 
@@ -276,7 +292,7 @@ campaignDetailService.getCampaignDetail("12345") { result ->
 
 Executes campaign redemption. Automatically validates selections, handles different campaign types, and returns appropriate next steps.
 
-When `isAutoUse = false` (configured in buzzebees-service.json), successful redemption returns `NextStep.ShowConfirmUse`. The SDK automatically caches the `redeemKey` for use with the `use()` method.
+The SDK automatically caches the `redeemKey` internally for use with the `use()` method when needed.
 
 ```kotlin
 // Suspend
@@ -365,7 +381,7 @@ when (nextStep) {
 
 ### getMyPoint
 
-Retrieves the current user's available points. Returns cached data if available, otherwise fetches from API.
+Retrieves the current user's available points. Uses cache-first strategy: returns cached data if available, otherwise fetches from API and caches the result.
 
 ```kotlin
 // Suspend
@@ -378,6 +394,14 @@ fun getMyPoint(callback: (Long?) -> Unit)
 #### Response
 
 Returns `Long?` - the user's available points, or `null` if not authenticated or error.
+
+#### Caching Behavior
+
+The SDK uses `InternalDataStore` to cache profile data:
+1. First checks cached profile from `getProfileFlow()`
+2. If cache exists, returns cached points immediately
+3. If cache is null, fetches from API via `profileApi.profile()`
+4. Saves fetched profile to cache for future use
 
 #### Example
 
@@ -487,6 +511,11 @@ fun selectVariant(variantOption: VariantOption): String?
 
 Returns `null` on success, or error message string on failure.
 
+**Validation Rules:**
+- Campaign must be loaded
+- Campaign type must be BUY
+- Variant must have quantity > 0 (unless it has sub-variants)
+
 #### selectSubVariant
 
 Selects a sub-variant for the currently selected variant (e.g., size, weight). Must call `selectVariant()` first.
@@ -494,6 +523,12 @@ Selects a sub-variant for the currently selected variant (e.g., size, weight). M
 ```kotlin
 fun selectSubVariant(subVariantOption: SubVariantOption): String?
 ```
+
+**Validation Rules:**
+- Campaign must be loaded
+- Campaign type must be BUY
+- A variant must be selected first
+- Sub-variant must have quantity > 0
 
 #### getSelectedVariant / getSelectedSubVariant
 
@@ -543,6 +578,11 @@ Selects a delivery address for campaigns requiring shipping (`delivered = true`)
 fun selectAddress(address: Address): String?
 ```
 
+**Validation Rules:**
+- Campaign must be loaded
+- Campaign must require delivery (`delivered = true`)
+- Address must have valid `rowKey` or `id`
+
 #### getSelectedAddress / clearAddressSelection
 
 ```kotlin
@@ -575,6 +615,12 @@ Sets the quantity for redemption. Validates against available stock and limits.
 fun setQuantity(quantity: Int): String?
 ```
 
+**Validation Rules:**
+- Campaign must be loaded
+- Quantity must be >= 1
+- For BUY campaigns with variants: quantity <= available variant/sub-variant stock
+- For DONATE campaigns: quantity <= campaign quantity limit
+
 #### increaseQuantity / decreaseQuantity
 
 ```kotlin
@@ -599,6 +645,8 @@ Clears all selections (variant, sub-variant, address, cached redeemKey) and rese
 fun clearAllSelections()
 ```
 
+**Note:** This is automatically called when loading a new campaign via `getCampaignDetail()`.
+
 ---
 
 ## Validation & Error Handling
@@ -607,13 +655,12 @@ fun clearAllSelections()
 
 The SDK automatically validates campaign conditions when calling `getCampaignDetail()`:
 
-1. User authentication status (not device login)
-2. User points vs required points
-3. Campaign expiration using server time
-4. Available quantity (`qty > 0`)
-5. Item count vs quantity limits (`itemCountSold < quantity`)
-6. User eligibility and condition pass status
-7. All condition alerts and business rules
+1. **Authentication** - User must be authenticated (not device login)
+2. **Points Check** - User points vs required points (skipped for BUY and MARKETPLACE_PRIVILEGE)
+3. **Expiration** - Campaign must not be expired (using server time)
+4. **Stock** - Available quantity must be > 0 (`qty > 0`)
+5. **Item Limits** - Item count vs quantity limits (`itemCountSold < quantity`)
+6. **Condition Pass** - User must meet all eligibility conditions (`isConditionPass`)
 
 Results are stored in:
 
@@ -622,28 +669,28 @@ Results are stored in:
 
 ### Condition Alert Codes
 
-| Alert ID | Description | Error Type |
-|----------|-------------|------------|
-| 1 | Campaign sold out | SOLD_OUT |
-| 2 | Max redemption per person reached | MAX_PER_PERSON |
-| 3 | Campaign in cool down period | COOL_DOWN |
-| 1403 | Condition invalid | CONDITION_INVALID |
-| 1406 | Sponsor only campaign | SPONSOR_ONLY |
-| 1409 | Campaign expired | EXPIRED |
-| 1410 | Campaign not started yet | CAMPAIGN_PENDING |
-| 1416 | App version expired | VERSION_EXPIRED |
-| 1427 | Terms and conditions not met | TERMS_VIOLATION |
+| Alert ID | Description | Config Field |
+|----------|-------------|--------------|
+| 1 | Campaign sold out | alertSoldOut |
+| 2 | Max redemption per person reached | alertMaxRedemption |
+| 3 | Campaign in cool down period | alertCoolDown |
+| 1403 | Condition invalid | alertConditionInvalid |
+| 1406 | Sponsor only campaign | alertSponsorOnly |
+| 1409 | Campaign expired | alertExpired |
+| 1410 | Campaign not started yet | alertNotStarted |
+| 1416 | App version expired | alertAppVersionExpired |
+| 1427 | Terms and conditions not met | alertTermsConditions |
 
 ### Error Codes from Redeem
 
-| Code | Description |
-|------|-------------|
-| -2 | Token required |
-| -99 | Invalid campaign type for cart |
-| -100 | Invalid variant |
-| -101 | Invalid quantity |
-| -102 | Address required |
-| -104 | Redeem key not found (call redeem() first) |
+| Code | Description | When |
+|------|-------------|------|
+| -2 | Token required | User not authenticated |
+| -99 | Invalid campaign type | Cart operation on unsupported type |
+| -100 | Invalid variant | Variant validation failed |
+| -101 | Invalid quantity | Quantity validation failed |
+| -102 | Address required | Delivery campaign without address |
+| -104 | Redeem key not found | Calling `use()` without prior `redeem()` |
 
 ### Handling Validation
 
@@ -680,7 +727,7 @@ fun handleValidationError(message: String?) {
 
 ---
 
-## Complete Flow Examples
+## Redemption Flow Logic
 
 ### NextStep - Post-Redemption Flow
 
@@ -688,35 +735,144 @@ After successful redemption, handle the `NextStep` to show appropriate UI:
 
 ```kotlin
 sealed class NextStep {
-    data class ShowCode(val redeemKey: String, val code: String, val campaignId: String) : NextStep()
-    data class ShowConfirmUse(val redeemKey: String, val campaignId: String) : NextStep()
-    data class ShowRedeemSuccess(val redeemKey: String, val campaignId: String) : NextStep()
-    data class ShowPointsEarned(val redeemKey: String, val pointsEarned: Double, val campaignId: String) : NextStep()
-    data class ShowDrawSuccess(val redeemKey: String, val campaignId: String, val code: String?, val pointsEarned: Double?) : NextStep()
-    data class ShowAddToCartSuccess(val cartUrl: String?) : NextStep()
-    data class SelectDeliveryAddress(val campaignId: String, val redeemKey: String) : NextStep()
-    data class OpenWebsite(val url: String, val urlType: String) : NextStep()
-    data class Error(val redeemKey: String?, val errorMessage: String, val campaignId: String) : NextStep()
+    data class ShowCode(
+        val redeemKey: String, 
+        val code: String, 
+        val campaignId: String
+    ) : NextStep()
+    
+    data class ShowConfirmUse(
+        val redeemKey: String, 
+        val campaignId: String
+    ) : NextStep()
+    
+    data class ShowRedeemSuccess(
+        val redeemKey: String, 
+        val campaignId: String
+    ) : NextStep()
+    
+    data class ShowPointsEarned(
+        val redeemKey: String, 
+        val pointsEarned: Double, 
+        val campaignId: String
+    ) : NextStep()
+    
+    data class ShowDrawSuccess(
+        val redeemKey: String, 
+        val campaignId: String, 
+        val code: String?,           // Serial code (nullable)
+        val pointsEarned: Double?    // Points if pointType = GET (nullable)
+    ) : NextStep()
+    
+    data class ShowAddToCartSuccess(
+        val cartUrl: String?
+    ) : NextStep()
+    
+    data class SelectDeliveryAddress(
+        val campaignId: String, 
+        val redeemKey: String
+    ) : NextStep()
+    
+    data class OpenWebsite(
+        val url: String, 
+        val urlType: String          // "survey", "website", or "media"
+    ) : NextStep()
+    
+    data class Error(
+        val redeemKey: String?, 
+        val errorMessage: String, 
+        val campaignId: String
+    ) : NextStep()
+    
     object Complete : NextStep()
 }
 ```
 
-### isAutoUse Flow
+### Detailed Redemption Flow Logic
 
-`IsAutoUse` is configured in `buzzebees-service.json`:
+The SDK determines the next step based on campaign configuration and response:
 
-- **`IsAutoUse: true`** (default): Server auto-generates code → `NextStep.ShowCode`
-- **`IsAutoUse: false`**: User must confirm → `NextStep.ShowConfirmUse`
+#### For DRAW and DONATE Campaigns
 
 ```
-redeem() → SuccessRedeem
-├── isAutoUse = true  → NextStep.ShowCode → Display code
-└── isAutoUse = false → NextStep.ShowConfirmUse → Dialog
-    ├── "Use Now"   → use() → SuccessUse → ShowCode
-    └── "Use Later" → No SDK call → Navigate to history
+redeem() → ShowDrawSuccess
+├── code = response.serial (if available)
+└── pointsEarned = pointPerUnit (if pointType = GET)
+```
+
+#### For GET Points Campaigns (pointType = GET)
+
+```
+redeem() → ShowPointsEarned
+└── pointsEarned = response.pointPerUnit or campaign.pointPerUnit
+```
+
+#### For Standard Redemptions (4-Case Logic)
+
+The SDK uses a combination of `isNotAutoUse` and `isRequireUniqueSerial` flags:
+
+| Case | isNotAutoUse | isRequireUniqueSerial | isUsed | Result |
+|------|--------------|----------------------|--------|--------|
+| 1.1 | `true` | `true` | - | `ShowCode` directly |
+| 1.2 | `true` | `false` | - | `ShowConfirmUse` |
+| 2.1 | `false` | - | `true` | `ShowCode` directly |
+| 2.2 | `false` | - | `false` | `ShowConfirmUse` |
+
+**Explanation:**
+- **Case 1 (isNotAutoUse = true)**: Campaign configured to NOT auto-use
+  - **1.1**: Requires unique serial → Show code immediately
+  - **1.2**: No unique serial required → Ask user "Use Now / Use Later"
+- **Case 2 (isNotAutoUse = false)**: Campaign configured to auto-use
+  - **2.1**: Already used by server → Show code immediately
+  - **2.2**: Not yet used → Ask user "Use Now / Use Later"
+
+```kotlin
+// Implementation logic
+val isNotAutoUse = campaign.isNotAutoUse ?: false
+val isRequireUniqueSerial = campaign.isRequireUniqueSerial ?: false
+val isUsed = response.isUsed ?: false
+
+return when {
+    isNotAutoUse && isRequireUniqueSerial -> NextStep.ShowCode(...)
+    isNotAutoUse -> NextStep.ShowConfirmUse(...)
+    isUsed -> NextStep.ShowCode(...)
+    else -> NextStep.ShowConfirmUse(...)
+}
+```
+
+### Flow Diagram
+
+```
+redeem()
+├── DRAW / DONATE Campaign
+│   └── ShowDrawSuccess(code?, pointsEarned?)
+│
+├── pointType = GET
+│   └── ShowPointsEarned(pointsEarned)
+│
+├── BUY / MARKETPLACE_PRIVILEGE Campaign
+│   └── ShowAddToCartSuccess(cartUrl)
+│
+├── INTERFACE / MEDIA / NEWS Campaign
+│   └── OpenWebsite(url, urlType)
+│
+└── Standard Campaign
+    ├── isNotAutoUse = true
+    │   ├── isRequireUniqueSerial = true  → ShowCode
+    │   └── isRequireUniqueSerial = false → ShowConfirmUse
+    │       ├── "Use Now"  → use() → ShowCode
+    │       └── "Use Later" → Navigate to history
+    │
+    └── isNotAutoUse = false
+        ├── isUsed = true  → ShowCode
+        └── isUsed = false → ShowConfirmUse
+            ├── "Use Now"  → use() → ShowCode
+            └── "Use Later" → Navigate to history
 ```
 
 ---
+
+## Complete Flow Examples
 
 ### BUY Campaign with Variants
 
@@ -822,7 +978,11 @@ class DonateCampaignViewModel {
             when (result) {
                 is CampaignDetailResult.SuccessRedeem -> {
                     if (result.nextStep is NextStep.ShowDrawSuccess) {
-                        showDonateSuccess()
+                        val step = result.nextStep as NextStep.ShowDrawSuccess
+                        showDonateSuccess(
+                            serial = step.code,
+                            pointsEarned = step.pointsEarned
+                        )
                     }
                 }
                 is CampaignDetailResult.Error -> handleError(result.error)
@@ -915,7 +1075,10 @@ fun handleNextStep(nextStep: NextStep?) {
             showPointsEarnedDialog(nextStep.pointsEarned)
         }
         is NextStep.ShowDrawSuccess -> {
-            showDrawSuccessDialog(nextStep.code, nextStep.pointsEarned)
+            showDrawSuccessDialog(
+                serial = nextStep.code,
+                pointsEarned = nextStep.pointsEarned
+            )
         }
         is NextStep.ShowAddToCartSuccess -> {
             showCartSuccess()
@@ -943,65 +1106,7 @@ fun handleNextStep(nextStep: NextStep?) {
 
 ### CampaignDetails
 
-#### Server Response Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | Int? | Campaign identifier |
-| agencyID | Int? | Agency identifier |
-| agencyName | String? | Agency display name |
-| name | String? | Campaign display name |
-| detail | String? | Detailed description |
-| condition | String? | Terms and conditions |
-| conditionAlert | String? | Condition alert message |
-| categoryID | Int? | Category identifier |
-| categoryName | String? | Category display name |
-| startDate | Long? | Start timestamp |
-| currentDate | Long? | Server timestamp |
-| expireDate | Long? | Expiration timestamp |
-| location | String? | Location information |
-| website | String? | Website URL |
-| discount | Double? | Discount amount |
-| originalPrice | Double? | Original price |
-| pricePerUnit | Double? | Price per unit |
-| pointPerUnit | Double? | Points per unit |
-| quantity | Double? | Total quantity |
-| qty | Double? | Available quantity |
-| redeemMostPerPerson | Double? | Max per person |
-| peopleLike | Int? | Like count |
-| peopleDislike | Int? | Dislike count |
-| itemCountSold | Double? | Items sold |
-| delivered | Boolean? | Requires delivery |
-| buzz | Int? | Buzz score |
-| type | Int? | Campaign type |
-| isSponsor | Boolean? | Is sponsored |
-| dayRemain | Int? | Days remaining |
-| dayProceed | Int? | Days since start |
-| soldOutDate | Long? | Sold out date |
-| caption | String? | Caption/subtitle |
-| voucherExpireDate | Long? | Voucher expiration |
-| userLevel | Long? | Required user level |
-| redeemCount | Int? | Redemption count |
-| useCount | Int? | Usage count |
-| nextRedeemDate | Long? | Next redeem date |
-| isLike | Boolean? | User liked |
-| minutesValidAfterUsed | Int? | Minutes valid |
-| barcode | String? | Barcode |
-| customInput | String? | Custom input |
-| customCaption | String? | Custom caption |
-| interfaceDisplay | String? | Interface config |
-| pointType | String? | Point type (use/get) |
-| defaultPrivilegeMessage | String? | Privilege message |
-| isNotAutoUse | Boolean? | Not auto-use flag |
-| pictures | `List<Picture>?` | Image gallery |
-| isConditionPass | Boolean? | Condition passed |
-| conditionAlertId | Int? | Alert identifier |
-| fullImageUrl | String? | Full image URL |
-| subCampaignStyles | SubCampaignStyle? | Style config |
-| subCampaigns | `List<SubCampaign>?` | Sub-campaigns |
-| related | `List<Campaign>?` | Related campaigns |
-| isFavourite | Boolean? | Is favorite |
-| partialPoints | PartialDetailPoints? | Partial points |
+[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/campaign/CampaignDetails.kt)
 
 #### SDK-Calculated Fields
 
@@ -1010,44 +1115,63 @@ fun handleNextStep(nextStep: NextStep?) {
 | canRedeem | Boolean | Ready for redemption |
 | errorConditionMessage | String? | Error message if not ready |
 | campaignCatalog | CampaignButtonCatalog | Button type to display |
-| displayCampaignName | String? | Normalized name |
-| displayCampaignDescription | String? | Normalized description |
-| displayConditions | String? | Normalized conditions |
+| displayCampaignName | String | Normalized name |
+| displayCampaignDescription | String | Normalized description |
+| displayConditions | String | Normalized conditions |
 | displayFullImageUrl | String? | Normalized image URL |
-| displayPictures | `List<String>?` | Normalized pictures |
-| displayCampaignPoint | String? | Formatted points |
+| displayPictures | `List<String>` | Normalized pictures |
+| displayCampaignPoint | String | Formatted points display |
 | displayVariants | `ArrayList<VariantOption>?` | Normalized variants |
 
----
-
-### RedeemResponse
+#### Key Campaign Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| campaignId | Int? | Campaign identifier |
-| itemNumber | Int? | Item number |
-| serial | String? | Serial/code |
-| agencyId | Int? | Agency identifier |
-| agencyName | String? | Agency name |
-| name | String? | Redemption name |
-| nextRedeemDate | Long? | Next redeem date |
-| currentDate | Long? | Server timestamp |
-| redeemCount | Int? | Redemption count |
-| useCount | Int? | Usage count |
+| id | Int? | Campaign ID |
+| name | String? | Campaign name |
+| type | Int? | Campaign type constant |
+| pointType | Int? | Point type (USE=1, GET=2) |
+| pointPerUnit | Double? | Points required/earned |
 | qty | Double? | Available quantity |
-| isConditionPass | Boolean? | Condition passed |
-| conditionAlert | String? | Condition alert |
-| isNotAutoUse | Boolean? | Not auto-use |
-| pointType | String? | Point type |
-| interfaceDisplay | String? | Interface config |
-| redeemKey | String? | Redemption key |
-| pricePerUnit | Double? | Price per unit |
-| redeemDate | Long? | Redemption timestamp |
-| campaignName | String? | Campaign name |
-| pointPerUnit | Double? | Points per unit |
-| expireIn | Long? | Expiration period |
-| privilegeMessage | String? | Privilege message |
-| privilegeMessageEN | String? | English message |
+| delivered | Boolean? | Requires delivery address |
+| isNotAutoUse | Boolean? | Not auto-use flag |
+| isRequireUniqueSerial | Boolean? | Requires unique serial |
+| isConditionPass | Boolean? | User meets conditions |
+| conditionAlertId | String? | Condition alert code |
+| conditionAlert | String? | Condition alert message |
+
+---
+
+### CampaignDetailResult
+
+```kotlin
+sealed class CampaignDetailResult {
+    data class SuccessCampaignDetail(
+        val result: CampaignDetails
+    ) : CampaignDetailResult()
+    
+    data class SuccessRedeem(
+        val result: RedeemResponse, 
+        var nextStep: NextStep?
+    ) : CampaignDetailResult()
+    
+    data class SuccessUse(
+        val result: RedeemResponse, 
+        var nextStep: NextStep?
+    ) : CampaignDetailResult()
+    
+    data class Error(
+        val error: ErrorResponse
+    ) : CampaignDetailResult()
+    
+    data class SuccessMarketplacePrivilege(
+        val campaignDetail: CampaignDetails,
+        val maximumPartialPoints: Double?,
+        val maximumPartialPrice: Double?,
+        val redirectUrl: String
+    ) : CampaignDetailResult()
+}
+```
 
 ---
 
@@ -1079,39 +1203,15 @@ fun handleNextStep(nextStep: NextStep?) {
 
 ---
 
-### CampaignDetailResult
-
-```kotlin
-sealed class CampaignDetailResult {
-    data class SuccessCampaignDetail(val result: CampaignDetails) : CampaignDetailResult()
-    data class SuccessRedeem(val result: RedeemResponse, var nextStep: NextStep?) : CampaignDetailResult()
-    data class SuccessUse(val result: RedeemResponse, var nextStep: NextStep?) : CampaignDetailResult()
-    data class SuccessUseLater(var nextStep: NextStep?) : CampaignDetailResult()
-    data class Error(val error: ErrorResponse) : CampaignDetailResult()
-    data class SuccessMarketplacePrivilege(
-        val campaignDetail: CampaignDetails,
-        val maximumPartialPoints: Double?,
-        val maximumPartialPrice: Double?,
-        val redirectUrl: String
-    ) : CampaignDetailResult()
-}
-```
-
----
-
-### Address
+### RedeemResponse
 
 | Field | Type | Description |
 |-------|------|-------------|
-| rowKey | String? | Address identifier |
-| id | String? | Address ID |
-| contactNumber | String? | Contact phone |
-| name | String? | Recipient name |
-| address | String? | Full address |
-| province | String? | Province |
-| district | String? | District |
-| subDistrict | String? | Sub-district |
-| postalCode | String? | Postal code |
+| campaignId | Int? | Campaign ID |
+| redeemKey | String? | Redemption key |
+| serial | String? | Serial/code |
+| isUsed | Boolean? | Whether already used |
+| pointPerUnit | Double? | Points earned |
 
 ---
 
@@ -1119,3 +1219,4 @@ sealed class CampaignDetailResult {
 
 - [SDK Comprehensive Guide](./SDK_COMPREHENSIVE_GUIDE.md) - Complete overview of all SDK capabilities
 - [CampaignUseCase Guide](./CampaignUseCase_GUIDE.md) - Campaign list operations
+- [History Guide](./History_GUIDE.md) - Redemption history operations

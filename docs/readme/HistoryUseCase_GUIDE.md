@@ -8,8 +8,8 @@ This guide shows how to initialize and use every public method in `HistoryUseCas
 - [Configuration](#configuration)
 - [Core Methods](#core-methods)
   - [getHistory](#gethistory)
+  - [processRedeem](#processredeem)
   - [use](#use)
-  - [getInquiryHistory](#getinquiryhistory)
   - [getRedeemAddress](#getredeemaddress)
 - [Purchase Entity](#purchase-entity)
 - [Display System Architecture](#display-system-architecture)
@@ -34,7 +34,8 @@ historyService.setDisplayTexts(HistoryExtractorConfig.THAI)
 
 // 2. Use methods without worrying about localization
 val result = historyService.getHistory(form)
-val useResult = historyService.use(purchase)
+val processResult = historyService.processRedeem(purchase)  // When user clicks item
+val useResult = historyService.use(purchase)  // For confirm use flow
 ```
 
 ---
@@ -150,6 +151,8 @@ fun onLanguageChanged(locale: String) {
 
 Retrieves the user's purchase and redemption history with filtering and pagination options. Uses display texts from `setDisplayTexts()` configuration.
 
+> **Note:** Data from this API may have incorrect values for some fields (e.g., `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, `expireIn`). Always use `processRedeem()` when user clicks on an item to get correct data.
+
 #### Request Parameters (HistoryForm)
 
 | Field Name | Description | Mandatory | Data Type |
@@ -204,7 +207,6 @@ when (result) {
             println("Name: ${purchase.displayMessage}")
             println("Status: ${purchase.displayStatus.label}")
             println("Button: ${purchase.buttonLabel}")
-            println("Action Type: ${purchase.displayType.action}")
             println("Can Click: ${purchase.displayType.canClick}")
         }
     }
@@ -230,21 +232,23 @@ historyService.getHistory(historyForm) { result ->
 
 ---
 
-### use
+### processRedeem
 
-Uses a redeemed campaign or voucher. Call this when user clicks the action button. Uses display texts from `setDisplayTexts()` configuration for error messages.
+Process a redeemed item when user clicks on it. This method fetches the latest data from inquiry API and determines the appropriate next action. **Always use this method when user clicks on a history item.**
+
+> **Important:** Data from `getHistory()` list may have incorrect values (e.g., `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, `expireIn`). This method fetches correct data from inquiry API before determining the action.
 
 #### Request Parameters
 
 | Field Name | Description | Mandatory | Data Type |
 |------------|-------------|-----------|-----------|
-| purchase | Purchase object from history | M | Purchase |
+| purchase | Purchase object from history list | M | Purchase |
 
 #### Response
 
 Returns `HistoryResult` which is either:
-- `HistoryResult.SuccessUse` - Contains `purchase` and `nextStep`
-- `HistoryResult.Error` - Contains error information (uses configured error messages)
+- `HistoryResult.SuccessProcessRedeem` - Contains `purchase` (with correct data from inquiry) and `nextStep`
+- `HistoryResult.Error` - Contains error information
 
 #### HistoryNextStep Types
 
@@ -260,6 +264,9 @@ sealed class HistoryNextStep : Parcelable {
         val redeemDate: Long?
     ) : HistoryNextStep()
     
+    /** Show confirm use dialog ("Use Now / Use Later") */
+    data class ShowConfirmUse(val purchase: Purchase) : HistoryNextStep()
+    
     /** Open external website URL */
     data class OpenWebsite(val url: String) : HistoryNextStep()
     
@@ -274,29 +281,82 @@ sealed class HistoryNextStep : Parcelable {
         val transactionId: String
     ) : HistoryNextStep()
     
-    /**
-     * Show privilege content for draw winners (no API call).
-     */
+    /** Show privilege content for draw winners */
     data class ShowInformation(val purchase: Purchase) : HistoryNextStep()
 }
+```
+
+#### Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    User clicks on history item                   │
+│                       processRedeem(purchase)                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+              ┌───────────────────────────────────┐
+              │       Route by displayType        │
+              └───────────────────────────────────┘
+                    │         │         │
+         ┌──────────┘         │         └──────────┐
+         ▼                    ▼                    ▼
+   ┌───────────┐       ┌───────────┐        ┌───────────┐
+   │ Purchase  │       │ Interface │        │   Draw    │
+   │ (FREE/    │       │ (Sticker, │        │ (Winner)  │
+   │  DEAL)    │       │  Website) │        │           │
+   └───────────┘       └───────────┘        └───────────┘
+         │                    │                    │
+         ▼                    │                    │
+┌─────────────────┐           │                    │
+│ Fetch Inquiry   │           │                    │
+│ API (correct    │           │                    │
+│ data)           │           │                    │
+└─────────────────┘           │                    │
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ ShowCode or     │  │ OpenWebsite or  │  │ ShowInformation │
+│ ShowConfirmUse  │  │ TransferPoint   │  │                 │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
 #### Usage Example
 
 ```kotlin
 // Suspend
-val result = historyService.use(purchase)
+val result = historyService.processRedeem(purchase)
 
 when (result) {
-    is HistoryResult.SuccessUse -> {
+    is HistoryResult.SuccessProcessRedeem -> {
+        // purchase in result has correct data from inquiry API
         when (val nextStep = result.nextStep) {
             is HistoryNextStep.ShowCode -> {
+                // Show code directly (already used or auto-use)
                 showCodeDialog(
                     code = nextStep.code,
                     barcode = nextStep.barcode,
                     hasCountdown = nextStep.hasCountdown,
                     countdownSeconds = nextStep.countdownSeconds,
                     redeemDate = nextStep.redeemDate
+                )
+            }
+            is HistoryNextStep.ShowConfirmUse -> {
+                // Show confirm dialog, then call use() if confirmed
+                showConfirmUseDialog(
+                    purchase = nextStep.purchase,
+                    onConfirm = {
+                        // User confirmed, now call use() API
+                        historyService.use(nextStep.purchase) { useResult ->
+                            when (useResult) {
+                                is HistoryResult.SuccessUse -> {
+                                    showCodeDialog(useResult.nextStep as HistoryNextStep.ShowCode)
+                                }
+                                is HistoryResult.Error -> showError(useResult.error)
+                                else -> {}
+                            }
+                        }
+                    }
                 )
             }
             is HistoryNextStep.OpenWebsite -> {
@@ -312,16 +372,15 @@ when (result) {
         }
     }
     is HistoryResult.Error -> {
-        // Error message uses configured text
         showError(result.error.error?.message)
     }
     else -> {}
 }
 
 // Callback
-historyService.use(purchase) { result ->
+historyService.processRedeem(purchase) { result ->
     when (result) {
-        is HistoryResult.SuccessUse -> handleNextStep(result.nextStep)
+        is HistoryResult.SuccessProcessRedeem -> handleNextStep(result.nextStep)
         is HistoryResult.Error -> showError(result.error.error?.message)
         else -> {}
     }
@@ -330,37 +389,47 @@ historyService.use(purchase) { result ->
 
 ---
 
-### getInquiryHistory
+### use
 
-Retrieves detailed inquiry information for a specific redemption.
+Calls the Use API to mark a voucher as used. **Only call this after user confirms in ShowConfirmUse dialog.**
+
+> **Note:** For most cases, use `processRedeem()` first. Only call `use()` when:
+> - User confirms "Use Now" in the confirm dialog (from `ShowConfirmUse` next step)
 
 #### Request Parameters
 
 | Field Name | Description | Mandatory | Data Type |
 |------------|-------------|-----------|-----------|
-| redeemKey | Unique redemption key from purchase | M | String |
+| purchase | Purchase object (preferably from processRedeem result) | M | Purchase |
 
 #### Response
 
-Returns `HistoryResult.SuccessInquiryHistory` with detailed `Purchase` data including serial, barcode, and expiration info.
+Returns `HistoryResult` which is either:
+- `HistoryResult.SuccessUse` - Contains `purchase` and `nextStep` (ShowCode)
+- `HistoryResult.Error` - Contains error information
 
 #### Usage Example
 
 ```kotlin
-// Suspend
-val result = historyService.getInquiryHistory(redeemKey = "redeem_key_12345")
-
-when (result) {
-    is HistoryResult.SuccessInquiryHistory -> {
-        val purchase = result.result
-        println("Serial: ${purchase.serial}")
-        println("Barcode: ${purchase.barcode}")
-        println("Expire In: ${purchase.expireIn}")
+// Called after user confirms in ShowConfirmUse dialog
+fun onUserConfirmUse(purchase: Purchase) {
+    viewModelScope.launch {
+        when (val result = historyService.use(purchase)) {
+            is HistoryResult.SuccessUse -> {
+                val showCode = result.nextStep as HistoryNextStep.ShowCode
+                showCodeDialog(
+                    code = showCode.code,
+                    barcode = showCode.barcode,
+                    hasCountdown = showCode.hasCountdown,
+                    countdownSeconds = showCode.countdownSeconds
+                )
+            }
+            is HistoryResult.Error -> {
+                showError(result.error.error?.message)
+            }
+            else -> {}
+        }
     }
-    is HistoryResult.Error -> {
-        showError(result.error.error?.message)
-    }
-    else -> {}
 }
 ```
 
@@ -449,6 +518,11 @@ when (result) {
 | info3 | Additional info field 3 | String? | Info3 |
 | info4 | Additional info field 4 | String? | Info4 |
 | info5 | Additional info field 5 | String? | Info5 |
+| isRequireUniqueSerial | Requires unique serial code | Boolean? | IsRequireUniqueSerial |
+| isNotAutoUse | Not auto-use flag | Boolean? | IsNotAutoUse |
+| barcode | Barcode value | String? | Barcode |
+
+> **Important:** Fields like `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, and `expireIn` may have incorrect values from `getHistory()`. Use `processRedeem()` to get correct values.
 
 ### Computed Display Fields (Auto-populated by SDK)
 
@@ -456,23 +530,22 @@ These fields are automatically computed using the configured `HistoryExtractorCo
 
 | Field Name | Description | Data Type |
 |------------|-------------|-----------|
-| displayType | Campaign display type with action | BzbsRedeemCampaignDisplayType |
+| displayType | Campaign display type | BzbsRedeemCampaignDisplayType |
 | displayStatus | Primary status (uses config texts) | DisplayStatus |
 | displayDeliveryStatus | Delivery status (optional) | DeliveryStatus? |
 | displayMessage | Formatted display message | String? |
 | displayFullImageUrl | Full image URL with CDN | String? |
 | displayPoint | Formatted point display | String? |
 | displayDate | Formatted date display | String? |
-| buttonLabel | Button text (from config, based on actionType) | String? |
+| buttonLabel | Button text (from config) | String? |
 
 ### Accessing Display Data (Direct Access Pattern)
 
-All display data is accessed directly from the normalized fields. No convenience accessors are provided - access properties directly from the display objects:
+All display data is accessed directly from the normalized fields:
 
 | Data Needed | Access Pattern |
 |-------------|----------------|
 | Can click? | `purchase.displayType.canClick` |
-| Action type | `purchase.displayType.action` |
 | Status label | `purchase.displayStatus.label` |
 | Status color | `purchase.displayStatus.color` |
 | Is draw? | `purchase.displayType.isDraw` or `purchase.displayStatus.isDraw` |
@@ -486,17 +559,7 @@ All display data is accessed directly from the normalized fields. No convenience
 ```kotlin
 // Check if item can be clicked
 if (purchase.displayType.canClick) {
-    // Show action button
-}
-
-// Get action type for routing
-when (purchase.displayType.action) {
-    RedeemActionType.CONFIRM_USE -> showConfirmDialog()
-    RedeemActionType.VIEW_CODE -> callUseApi()
-    RedeemActionType.OPEN_WEBSITE -> callUseApi()
-    RedeemActionType.TRANSFER_POINT -> callUseApi()
-    RedeemActionType.SHOW_INFO -> callUseApi() // For draw winners
-    null -> { /* No action available */ }
+    // Show action button, use processRedeem() when clicked
 }
 
 // Display status badge
@@ -527,35 +590,35 @@ purchase.displayStatus.privilegeContent?.let { content ->
 
 ### BzbsRedeemCampaignDisplayType (Main Display Type)
 
-The `displayType` field determines the overall display behavior and action:
+The `displayType` field determines the overall display behavior:
 
 ```kotlin
 sealed class BzbsRedeemCampaignDisplayType : Parcelable {
     abstract val canClick: Boolean
 
     // Standard purchase with action button
-    data class Purchase(val actionType: RedeemActionType) : BzbsRedeemCampaignDisplayType()
+    data object Purchase : BzbsRedeemCampaignDisplayType()
     
     // Delivery item with tracking
-    data class Delivery(val actionType: RedeemActionType? = null) : BzbsRedeemCampaignDisplayType()
+    data class Delivery(val trackingNo: String? = null) : BzbsRedeemCampaignDisplayType()
     
     // Delivery item without tracking yet
-    data class DeliveryNoParcel(val actionType: RedeemActionType? = null) : BzbsRedeemCampaignDisplayType()
+    data object DeliveryNoParcel : BzbsRedeemCampaignDisplayType()
     
     // Draw campaign (only winners can click)
-    data class Draw(val actionType: RedeemActionType? = null) : BzbsRedeemCampaignDisplayType()
+    data class Draw(val isWinner: Boolean) : BzbsRedeemCampaignDisplayType()
     
     // Draw winner with delivery (preparing)
-    data class DrawDelivery(val actionType: RedeemActionType? = null) : BzbsRedeemCampaignDisplayType()
+    data class DrawDelivery(val isWinner: Boolean) : BzbsRedeemCampaignDisplayType()
     
     // Draw winner with delivery (shipped with tracking)
     data class DrawDeliveryParcel(
         val trackingNo: String? = null,
-        val actionType: RedeemActionType? = null
+        val isWinner: Boolean
     ) : BzbsRedeemCampaignDisplayType()
     
     // Interface campaign (web-based actions)
-    data class Interface(val actionType: RedeemActionType) : BzbsRedeemCampaignDisplayType()
+    data object Interface : BzbsRedeemCampaignDisplayType()
     
     // Message only (no action)
     data class Message(val privilegeContent: PrivilegeContent? = null) : BzbsRedeemCampaignDisplayType()
@@ -564,49 +627,12 @@ sealed class BzbsRedeemCampaignDisplayType : Parcelable {
     data object Expired : BzbsRedeemCampaignDisplayType()
 
     // Helper properties
-    val action: RedeemActionType?
-        get() = when (this) {
-            is Purchase -> actionType
-            is Delivery -> actionType
-            is DeliveryNoParcel -> actionType
-            is Interface -> actionType
-            is Draw -> actionType
-            is DrawDelivery -> actionType
-            is DrawDeliveryParcel -> actionType
-            else -> null
-        }
-
     val isDraw: Boolean
         get() = this is Draw || this is DrawDelivery || this is DrawDeliveryParcel
 
     val hasDelivery: Boolean
         get() = this is Delivery || this is DeliveryNoParcel ||
                 this is DrawDelivery || this is DrawDeliveryParcel
-}
-```
-
-### RedeemActionType Enum
-
-Action types determine what happens when user clicks. Button labels are stored separately in `Purchase.buttonLabel`:
-
-```kotlin
-enum class RedeemActionType {
-    /** View code (used or auto-use) */
-    VIEW_CODE,
-    
-    /** Confirm before use */
-    CONFIRM_USE,
-    
-    /** Open website (LINE Sticker, Garena, TrueMoney, Starbucks) */
-    OPEN_WEBSITE,
-    
-    /** Transfer points (The1, TruePoint) */
-    TRANSFER_POINT,
-    
-    /**
-     * Show privilege content for draw winners (no API call).
-     */
-    SHOW_INFO
 }
 ```
 
@@ -707,10 +733,28 @@ class HistoryViewModel : ViewModel() {
         }
     }
     
-    fun usePurchase(purchase: Purchase, onNextStep: (HistoryNextStep) -> Unit) {
+    /**
+     * Process item when user clicks - fetches correct data from inquiry API
+     */
+    fun processItem(purchase: Purchase, onNextStep: (HistoryNextStep) -> Unit) {
+        viewModelScope.launch {
+            when (val result = historyService.processRedeem(purchase)) {
+                is HistoryResult.SuccessProcessRedeem -> onNextStep(result.nextStep)
+                is HistoryResult.Error -> { /* handle error */ }
+                else -> {}
+            }
+        }
+    }
+    
+    /**
+     * Call use API after user confirms - only for ShowConfirmUse flow
+     */
+    fun confirmUse(purchase: Purchase, onShowCode: (HistoryNextStep.ShowCode) -> Unit) {
         viewModelScope.launch {
             when (val result = historyService.use(purchase)) {
-                is HistoryResult.SuccessUse -> onNextStep(result.nextStep)
+                is HistoryResult.SuccessUse -> {
+                    (result.nextStep as? HistoryNextStep.ShowCode)?.let { onShowCode(it) }
+                }
                 is HistoryResult.Error -> { /* handle error */ }
                 else -> {}
             }
@@ -723,24 +767,37 @@ class HistoryViewModel : ViewModel() {
 
 ```kotlin
 fun handleActionClick(purchase: Purchase, viewModel: HistoryViewModel) {
-    when (purchase.displayType.action) {
-        RedeemActionType.CONFIRM_USE -> showConfirmDialog(purchase)
-        RedeemActionType.VIEW_CODE,
-        RedeemActionType.OPEN_WEBSITE,
-        RedeemActionType.TRANSFER_POINT,
-        RedeemActionType.SHOW_INFO -> {
-            viewModel.usePurchase(purchase) { nextStep ->
-                when (nextStep) {
-                    is HistoryNextStep.ShowCode -> showCodeDialog(nextStep)
-                    is HistoryNextStep.OpenWebsite -> openUrl(nextStep.url)
-                    is HistoryNextStep.ShowTransferPointDialog -> showTransferDialog(nextStep)
-                    is HistoryNextStep.ShowInformation -> showInfoDialog(nextStep)
-                }
+    // Always use processRedeem when user clicks on item
+    viewModel.processItem(purchase) { nextStep ->
+        when (nextStep) {
+            is HistoryNextStep.ShowCode -> {
+                // Show code directly (already used or auto-use)
+                showCodeDialog(nextStep)
             }
-        }
-        null -> {
-            // No action - maybe copy tracking number for delivery items
-            purchase.displayDeliveryStatus?.trackingNo?.let { copyToClipboard(it) }
+            is HistoryNextStep.ShowConfirmUse -> {
+                // Show confirm dialog
+                showConfirmDialog(
+                    purchase = nextStep.purchase,
+                    onConfirm = {
+                        // User confirmed, call use() API
+                        viewModel.confirmUse(nextStep.purchase) { showCode ->
+                            showCodeDialog(showCode)
+                        }
+                    },
+                    onCancel = {
+                        // User chose "Use Later" - do nothing
+                    }
+                )
+            }
+            is HistoryNextStep.OpenWebsite -> {
+                openUrl(nextStep.url)
+            }
+            is HistoryNextStep.ShowTransferPointDialog -> {
+                showTransferDialog(nextStep)
+            }
+            is HistoryNextStep.ShowInformation -> {
+                showInfoDialog(nextStep.purchase)
+            }
         }
     }
 }
@@ -760,10 +817,8 @@ fun StatusAndActionView(
             // Standard purchase: Status + Action button
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             ActionButton(
-                actionType = displayType.actionType,
                 buttonLabel = purchase.buttonLabel,
-                isUsed = purchase.isUsed == true,
-                onClick = onActionClick
+                onClick = onActionClick  // Will call processRedeem()
             )
         }
 
@@ -774,23 +829,20 @@ fun StatusAndActionView(
                 StatusBadge(delivery.label, delivery.color)
                 delivery.trackingNo?.let { CopyableTrackingNumber(it) }
             }
-            // No action button for delivery items
         }
 
         is BzbsRedeemCampaignDisplayType.DeliveryNoParcel -> {
             // Delivery preparing: Status + Delivery status (No action button)
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             purchase.displayDeliveryStatus?.let { StatusBadge(it.label, it.color) }
-            // No action button for delivery items
         }
 
         is BzbsRedeemCampaignDisplayType.Draw -> {
             // Draw campaign: Status + Privilege content (for winners)
-            // Only winners can click (actionType = SHOW_INFO)
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             purchase.displayStatus.privilegeContent?.let { PrivilegeContentDisplay(it, onOpenWebsite) }
-            displayType.actionType?.let {
-                ActionButton(it, purchase.buttonLabel, false, onActionClick)
+            if (displayType.isWinner) {
+                ActionButton(purchase.buttonLabel, onActionClick)  // Will call processRedeem()
             }
         }
 
@@ -799,8 +851,8 @@ fun StatusAndActionView(
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             purchase.displayStatus.privilegeContent?.let { PrivilegeContentDisplay(it, onOpenWebsite) }
             purchase.displayDeliveryStatus?.let { StatusBadge(it.label, it.color) }
-            displayType.actionType?.let {
-                ActionButton(it, purchase.buttonLabel, false, onActionClick)
+            if (displayType.isWinner) {
+                ActionButton(purchase.buttonLabel, onActionClick)
             }
         }
 
@@ -812,8 +864,8 @@ fun StatusAndActionView(
                 StatusBadge(delivery.label, delivery.color)
                 displayType.trackingNo?.let { CopyableTrackingNumber(it) }
             }
-            displayType.actionType?.let {
-                ActionButton(it, purchase.buttonLabel, false, onActionClick)
+            if (displayType.isWinner) {
+                ActionButton(purchase.buttonLabel, onActionClick)
             }
         }
 
@@ -821,10 +873,8 @@ fun StatusAndActionView(
             // Interface campaign: Status + Action button (web/sticker/transfer)
             StatusBadge(purchase.displayStatus.label, purchase.displayStatus.color)
             ActionButton(
-                actionType = displayType.actionType,
                 buttonLabel = purchase.buttonLabel,
-                isUsed = purchase.isUsed == true,
-                onClick = onActionClick
+                onClick = onActionClick  // Will call processRedeem()
             )
         }
 
@@ -860,23 +910,13 @@ fun StatusBadge(label: String, color: StatusColor) {
 
 @Composable
 fun ActionButton(
-    actionType: RedeemActionType,
     buttonLabel: String?,
-    isUsed: Boolean,
     onClick: () -> Unit
 ) {
-    val buttonColor = when (actionType) {
-        RedeemActionType.CONFIRM_USE -> MaterialTheme.colorScheme.primary
-        RedeemActionType.VIEW_CODE -> if (isUsed) Color(0xFF757575) else Color(0xFF4CAF50)
-        RedeemActionType.OPEN_WEBSITE -> Color(0xFF2196F3)
-        RedeemActionType.TRANSFER_POINT -> Color(0xFF9C27B0)
-        RedeemActionType.SHOW_INFO -> Color(0xFF009688)
-    }
-
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = buttonColor)
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Text(buttonLabel ?: "")
     }
@@ -908,24 +948,21 @@ fun ActionButton(
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Standard Campaign (FREE/DEAL)
+### Standard Campaign (FREE/DEAL) - processRedeem Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ isUsed == true                                                  │
-│   → displayStatus: Used(config.statusUsed)                      │
-│   → displayType: Purchase(VIEW_CODE)                            │
-│   → buttonLabel: config.buttonViewCode                          │
+│ User clicks → processRedeem() → Fetch Inquiry API               │
 ├─────────────────────────────────────────────────────────────────┤
-│ isUsed == false && isAutoUse                                    │
-│   → displayStatus: Redeemed(config.statusRedeemed)              │
-│   → displayType: Purchase(VIEW_CODE)                            │
-│   → buttonLabel: config.buttonViewCode                          │
+│ IsNotAutoUse = true (ไม่ Auto Use)                              │
+│   ├─ IsRequireUniqueSerial = true  → ShowCode                   │
+│   └─ IsRequireUniqueSerial = false                              │
+│       ├─ IsUsed = true  → ShowCode                              │
+│       └─ IsUsed = false → ShowConfirmUse                        │
 ├─────────────────────────────────────────────────────────────────┤
-│ isUsed == false && !isAutoUse                                   │
-│   → displayStatus: Redeemed(config.statusRedeemed)              │
-│   → displayType: Purchase(CONFIRM_USE)                          │
-│   → buttonLabel: config.buttonConfirmUse                        │
+│ IsNotAutoUse = false (Auto Use)                                 │
+│   ├─ IsUsed = true  → ShowCode                                  │
+│   └─ IsUsed = false → ShowConfirmUse                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -935,17 +972,18 @@ fun ActionButton(
 ┌──────────────────────────────────────────────────────────────────────┐
 │ hasWinner && isWinner                                                │
 │   → displayStatus: DrawWinner(config.drawStatusWinner, privilege)    │
-│   → displayType: Draw(SHOW_INFO)     ← Winner can click              │
+│   → displayType: Draw(isWinner = true)  ← Winner can click           │
 │   → buttonLabel: config.buttonShowInfo                               │
+│   → processRedeem() → ShowInformation                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │ hasWinner && !isWinner                                               │
 │   → displayStatus: DrawNotWinner(config.drawStatusNotWinner)         │
-│   → displayType: Draw(null)          ← Not winner, cannot click      │
+│   → displayType: Draw(isWinner = false) ← Not winner, cannot click   │
 │   → buttonLabel: null                                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │ !hasWinner                                                           │
 │   → displayStatus: DrawWaiting(config.drawStatusWaiting)             │
-│   → displayType: Draw(null)          ← Waiting, cannot click         │
+│   → displayType: Draw(isWinner = false) ← Waiting, cannot click      │
 │   → buttonLabel: null                                                │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -959,69 +997,31 @@ Delivery items only show status and tracking information. **No action button is 
 │ isShipped == true                                                    │
 │   → displayStatus: Redeemed(config.statusRedeemed)                   │
 │   → displayDeliveryStatus: Shipped(config.deliveryStatusShipped, no) │
-│   → displayType: Delivery(null)      ← No action                     │
+│   → displayType: Delivery(trackingNo)   ← No action                  │
 │   → buttonLabel: null                                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │ isShipped == false                                                   │
 │   → displayStatus: Redeemed(config.statusRedeemed)                   │
 │   → displayDeliveryStatus: Preparing(config.deliveryStatusPreparing) │
-│   → displayType: DeliveryNoParcel(null)  ← No action                 │
+│   → displayType: DeliveryNoParcel       ← No action                  │
 │   → buttonLabel: null                                                │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Draw with Delivery (Only Winners Can Click)
+### Interface Campaign - processRedeem Flow
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ isWinner && isShipped && parcelNo exists                             │
-│   → displayStatus: DrawWinner(config.drawStatusWinner, privilege)    │
-│   → displayDeliveryStatus: Shipped(config.deliveryStatusShipped, no) │
-│   → displayType: DrawDeliveryParcel(parcelNo, SHOW_INFO)             │
-│   → buttonLabel: config.buttonShowInfo                               │
-├──────────────────────────────────────────────────────────────────────┤
-│ isWinner && !isShipped                                               │
-│   → displayStatus: DrawWinner(config.drawStatusWinner, privilege)    │
-│   → displayDeliveryStatus: Preparing(config.deliveryStatusPreparing) │
-│   → displayType: DrawDelivery(SHOW_INFO)                             │
-│   → buttonLabel: config.buttonShowInfo                               │
-├──────────────────────────────────────────────────────────────────────┤
-│ !isWinner                                                            │
-│   → displayStatus: DrawNotWinner/DrawWaiting                         │
-│   → displayDeliveryStatus: null                                      │
-│   → displayType: Draw(null)          ← Not winner, cannot click      │
-│   → buttonLabel: null                                                │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### Interface Campaign
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ Survey completed (interfaceDisplay == "survey" && pointType == "use")│
-│   → displayStatus: Used(config.statusUsed)                           │
-│   → displayType: Message(null)                                       │
-│   → buttonLabel: null                                                │
-├──────────────────────────────────────────────────────────────────────┤
-│ isUsed == true                                                       │
-│   → displayStatus: Used(config.statusUsed)                           │
-│   → displayType: Message(null)                                       │
-│   → buttonLabel: null                                                │
+│ User clicks → processRedeem()                                        │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LINE Sticker (website contains "linesticker")                        │
-│   → displayStatus: Redeemed(config.statusRedeemed)                   │
-│   → displayType: Interface(OPEN_WEBSITE)                             │
-│   → buttonLabel: config.buttonDownloadSticker                        │
+│   → OpenWebsite(url)                                                 │
 ├──────────────────────────────────────────────────────────────────────┤
 │ Transfer Point (website contains "the1" / "truepoint" / "theone")    │
-│   → displayStatus: Redeemed(config.statusRedeemed)                   │
-│   → displayType: Interface(TRANSFER_POINT)                           │
-│   → buttonLabel: config.buttonTransferPoint                          │
+│   → ShowTransferPointDialog(...)                                     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ Garena / TrueMoney / Starbucks / Other Website                       │
-│   → displayStatus: Redeemed(config.statusRedeemed)                   │
-│   → displayType: Interface(OPEN_WEBSITE)                             │
-│   → buttonLabel: config.buttonOpenWebsite                            │
+│   → OpenWebsite(url)                                                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1034,39 +1034,39 @@ The HistoryUseCase provides comprehensive purchase and redemption history manage
 **Key Features:**
 
 - **`setDisplayTexts()` method** - Configure all display texts once, use everywhere
+- **`processRedeem()` method** - Fetches correct data from inquiry API and determines next action
+- **`use()` method** - Calls Use API after user confirms
 - **Structured Display Type System** - `BzbsRedeemCampaignDisplayType` determines UI behavior
 - **Pre-computed Display Fields** - Status labels, button labels use configured texts
-- **RedeemActionType Enum** - Simple action types (VIEW_CODE, CONFIRM_USE, OPEN_WEBSITE, TRANSFER_POINT, SHOW_INFO)
-- **Separate buttonLabel** - SDK normalizes button text based on actionType + website
-- **Next Step Actions** - Clear result types (ShowCode, OpenWebsite, ShowTransferPointDialog, ShowInformation)
+- **Next Step Actions** - Clear result types (ShowCode, ShowConfirmUse, OpenWebsite, ShowTransferPointDialog, ShowInformation)
 - **Delivery Tracking** - Built-in delivery status and tracking number support
 - **Draw Campaign Support** - Winner/loser status with privilege content display (TEXT/HTML/URL)
 - **Winner-Only Click** - Only draw winners can click to see privilege content
 
-**Benefits:**
-
-- Easy localization - just change config at startup
-- Consistent text across all history items
-- No need to manually map status types to labels
-- Type-safe action handling with sealed classes and enums
-- Reduced boilerplate code in ViewModels and UI
-- Clean separation: actionType (what to do) vs buttonLabel (what to show)
-
 **Architecture Highlights:**
 
-- `displayType` determines what UI to show and what action is available
+- `getHistory()` returns list with display data (but some fields may be incorrect)
+- `processRedeem()` fetches correct data from inquiry API and returns `HistoryNextStep`
+- `use()` calls Use API and returns `ShowCode` (only for confirm use flow)
+- `displayType` determines what UI to show and whether item can be clicked
 - `displayStatus` provides the primary status badge (Redeemed, Used, Expired, Draw states)
 - `displayDeliveryStatus` provides secondary delivery badge (Preparing, Shipped)
-- All display data accessed directly from normalized fields (no convenience accessors)
-- `buttonLabel` is set by SDK based on actionType + website (from config)
-- Draw campaigns: only winners have `actionType = SHOW_INFO`, others have `null`
+- `buttonLabel` is set by SDK based on campaign type and website (from config)
+
+**Method Usage Pattern:**
+
+| Scenario | Method to Use |
+|----------|---------------|
+| Load history list | `getHistory()` |
+| User clicks on item | `processRedeem()` |
+| User confirms "Use Now" | `use()` |
+| Get delivery address | `getRedeemAddress()` |
 
 **Direct Access Pattern:**
 
 | Data Needed | Access Pattern |
 |-------------|----------------|
 | Can click? | `purchase.displayType.canClick` |
-| Action type | `purchase.displayType.action` |
 | Status label | `purchase.displayStatus.label` |
 | Status color | `purchase.displayStatus.color` |
 | Is draw? | `purchase.displayType.isDraw` |
