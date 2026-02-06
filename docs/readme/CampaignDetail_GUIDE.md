@@ -1180,8 +1180,6 @@ fun handleNextStep(nextStep: NextStep?) {
 
 ### CampaignDetails
 
-[Source](../buzzebees_sdk/src/main/java/com/buzzebees/sdk/entity/campaign/CampaignDetails.kt)
-
 #### SDK-Calculated Fields
 
 | Field | Type | Description |
