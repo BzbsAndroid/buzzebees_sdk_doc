@@ -8,8 +8,10 @@ This guide shows how to initialize and use every public method in `HistoryUseCas
 - [Configuration](#configuration)
 - [Core Methods](#core-methods)
   - [getHistory](#gethistory)
+  - [useRedeem](#useredeem)
   - [processRedeem](#processredeem)
-  - [use](#use)
+  - [processRedeemAction](#processredeemaction)
+  - [useNow](#usenow)
   - [getRedeemAddress](#getredeemaddress)
 - [Purchase Entity](#purchase-entity)
 - [Display System Architecture](#display-system-architecture)
@@ -29,28 +31,27 @@ val historyService = BuzzebeesSDK.instance().history
 ### Quick Start
 
 ```kotlin
-// 1. Set display texts once at initialization
-historyService.setDisplayTexts(HistoryExtractorConfig.THAI)
+// 1. Set config once at initialization
+historyService.setConfig(HistoryConfigBuilder.thai())
 
 // 2. Use methods without worrying about localization
 val result = historyService.getHistory(form)
-val processResult = historyService.processRedeem(purchase)  // When user clicks item
-val useResult = historyService.use(purchase)  // For confirm use flow
+val processResult = historyService.processRedeemAction(purchase)  // When user clicks item
+val useResult = historyService.useNow(purchase)  // For confirm use flow
 ```
 
 ---
 
 ## Configuration
 
-### setDisplayTexts
+### setConfig
 
-Set display texts configuration once at initialization. After setting, all status messages, button labels, and error messages will use these texts automatically.
+Set configuration once at initialization. After setting, all status messages, button labels, and error messages will use these texts automatically.
 
 #### Method Signature
 
 ```kotlin
-fun setDisplayTexts(config: HistoryExtractorConfig)
-fun getDisplayTexts(): HistoryExtractorConfig
+fun setConfig(builder: HistoryConfigBuilder)
 ```
 
 #### HistoryExtractorConfig Fields
@@ -87,31 +88,164 @@ fun getDisplayTexts(): HistoryExtractorConfig
 
 ```kotlin
 // English (Default)
-HistoryExtractorConfig.DEFAULT
+HistoryConfigBuilder.english()
 
 // Thai
-HistoryExtractorConfig.THAI
+HistoryConfigBuilder.thai()
 ```
 
 #### Usage Examples
 
 ```kotlin
 // Option 1: Use Thai language
-historyService.setDisplayTexts(HistoryExtractorConfig.THAI)
+historyService.setConfig(HistoryConfigBuilder.thai())
 
 // Option 2: Use English (default)
-historyService.setDisplayTexts(HistoryExtractorConfig.DEFAULT)
+historyService.setConfig(HistoryConfigBuilder.english())
 
-// Option 3: Custom some texts
-historyService.setDisplayTexts(
-    HistoryExtractorConfig.THAI.copy(
-        statusExpired = "สิทธิ์หมดอายุแล้ว"
-    )
+// Option 3: Custom configuration - individual setters
+historyService.setConfig(
+    HistoryConfigBuilder.thai()
+        .statusText(StatusType.EXPIRED, "สิทธิ์หมดอายุแล้ว")
+        .buttonLabel(ButtonLabelType.VIEW_CODE, "ดูโค้ดของฉัน")
 )
 
-// Get current configuration
-val currentConfig = historyService.getDisplayTexts()
+// Option 4: Custom configuration - batch setters
+historyService.setConfig(
+    HistoryConfigBuilder.thai()
+        .statusTexts(
+            expired = "หมดอายุแล้ว",
+            used = "ใช้ไปแล้ว"
+        )
+        .buttonLabels(
+            viewCode = "ดูโค้ด",
+            showInfo = "ดูข้อมูล"
+        )
+)
 ```
+
+### Builder Methods
+
+#### Individual Setters
+```kotlin
+// Set individual status text
+builder.statusText(StatusType.REDEEMED, "แลกสำเร็จ!")
+
+// Set individual draw status text
+builder.drawStatusText(DrawStatusType.WINNER, "ถูกรางวัล! 🎉")
+
+// Set individual delivery status text
+builder.deliveryStatusText(DeliveryStatusType.SHIPPED, "ส่งแล้ว")
+
+// Set individual button label
+builder.buttonLabel(ButtonLabelType.VIEW_CODE, "ดูโค้ดของฉัน")
+
+// Set individual not support message
+builder.notSupportMessage(NotSupportType.DRAW_NOT_WINNER, "ไม่ได้รางวัลครั้งนี้")
+
+// Set individual error message
+builder.errorMessage(HistoryErrorType.NO_CODE, "ไม่มีโค้ด")
+```
+
+#### Batch Setters
+```kotlin
+// Set multiple status texts at once
+builder.statusTexts(
+    redeemed = "แลกแล้ว",
+    used = "ใช้แล้ว"
+)
+
+// Set multiple draw status texts at once
+builder.drawStatusTexts(
+    winner = "ชนะรางวัล",
+    notWinner = "ไม่ได้รางวัล"
+)
+
+// Set multiple delivery status texts at once
+builder.deliveryStatusTexts(
+    preparing = "กำลังเตรียมส่ง",
+    shipped = "ส่งออกแล้ว"
+)
+
+// Set multiple button labels at once
+builder.buttonLabels(
+    viewCode = "ดูรหัส",
+    showInfo = "ดูรายละเอียด"
+)
+
+// Set multiple not support messages at once
+builder.notSupportMessages(
+    campaignExpired = "หมดอายุแล้ว",
+    drawPending = "รอประกาศผล"
+)
+```
+
+#### Preset Methods
+```kotlin
+// Apply Thai presets
+builder.thaiStatusTexts()
+builder.thaiDrawStatusTexts()
+builder.thaiDeliveryStatusTexts()
+builder.thaiButtonLabels()
+builder.thaiNotSupportMessages()
+builder.thaiErrorMessages()
+
+// Apply English presets
+builder.englishStatusTexts()
+builder.englishDrawStatusTexts()
+builder.englishDeliveryStatusTexts()
+builder.englishButtonLabels()
+builder.englishNotSupportMessages()
+builder.englishErrorMessages()
+```
+
+### Available Enums
+
+#### StatusType
+- `READY` - Ready to use
+- `EXPIRED` - Expired
+- `USED` - Used
+- `COMPLETED` - Completed
+- `DONATED` - Donated
+- `REDEEMED` - Redeemed
+
+#### DrawStatusType
+- `WAITING` - Waiting for result
+- `WINNER` - Winner
+- `NOT_WINNER` - Not a winner
+
+#### DeliveryStatusType
+- `PREPARING` - Preparing for shipment
+- `SHIPPED` - Item has been shipped
+- `SUCCESS` - Delivery successful
+
+#### ButtonLabelType
+- `VIEW_CODE` - View code button
+- `CONFIRM_USE` - Confirm use at store button
+- `DOWNLOAD_STICKER` - Download LINE sticker button
+- `TRANSFER_POINT` - Transfer points button
+- `OPEN_WEBSITE` - Open website button
+- `SHOW_INFO` - Show information button
+
+#### NotSupportType
+- `CAMPAIGN_EXPIRED` - Campaign has expired
+- `UNSUPPORTED_TYPE` - Campaign type not supported
+- `DRAW_PENDING` - Draw result pending
+- `DRAW_NOT_WINNER` - User is not a winner
+- `SURVEY_COMPLETED` - Survey already completed
+- `NO_WEBSITE` - No website available
+- `DELIVERY_IN_PROGRESS` - Delivery in progress
+- `INTERFACE_NOT_SUPPORTED` - Interface type not supported
+- `NO_ACTION` - No action available
+
+#### HistoryErrorType
+- `TOKEN_REQUIRED` - Token is required
+- `CANNOT_USE` - Item cannot be used
+- `NO_ACTION` - No action available
+- `REDEEM_KEY_REQUIRED` - Redeem key is required
+- `NO_DATA` - No data found
+- `NO_URL` - No URL found
+- `NO_CODE` - No code found
 
 #### When to Call
 
@@ -127,19 +261,19 @@ class MyApp : Application() {
         // Initialize SDK
         BuzzebeesSDK.init(this, config)
         
-        // Set display texts for history service
-        BuzzebeesSDK.instance().history.setDisplayTexts(HistoryExtractorConfig.THAI)
+        // Set config for history service
+        BuzzebeesSDK.instance().history.setConfig(HistoryConfigBuilder.thai())
     }
 }
 
 // Example: On language change
 fun onLanguageChanged(locale: String) {
-    val config = if (locale == "th") {
-        HistoryExtractorConfig.THAI
+    val builder = if (locale == "th") {
+        HistoryConfigBuilder.thai()
     } else {
-        HistoryExtractorConfig.DEFAULT
+        HistoryConfigBuilder.english()
     }
-    BuzzebeesSDK.instance().history.setDisplayTexts(config)
+    BuzzebeesSDK.instance().history.setConfig(builder)
 }
 ```
 
@@ -149,9 +283,9 @@ fun onLanguageChanged(locale: String) {
 
 ### getHistory
 
-Retrieves the user's purchase and redemption history with filtering and pagination options. Uses display texts from `setDisplayTexts()` configuration.
+Retrieves the user's purchase and redemption history with filtering and pagination options. Uses display texts from `setConfig()` configuration.
 
-> **Note:** Data from this API may have incorrect values for some fields (e.g., `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, `expireIn`). Always use `processRedeem()` when user clicks on an item to get correct data.
+> **Note:** Data from this API may have incorrect values for some fields (e.g., `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, `expireIn`). Always use `processRedeemAction()` when user clicks on an item to get correct data.
 
 #### Request Parameters (HistoryForm)
 
@@ -175,7 +309,7 @@ Returns `HistoryResult` which is either:
 
 ```kotlin
 // Set display texts once (typically at app startup)
-historyService.setDisplayTexts(HistoryExtractorConfig.THAI)
+historyService.setConfig(HistoryConfigBuilder.thai())
 
 // Create form - Basic
 val historyForm = HistoryForm(
@@ -232,11 +366,104 @@ historyService.getHistory(historyForm) { result ->
 
 ---
 
+### useRedeem
+
+Use a redeem key directly. Calls the use API to activate the code.
+
+#### Request Parameters
+
+| Field Name | Description | Mandatory | Data Type |
+|------------|-------------|-----------|--------|
+| redeemKey | The redeem key to use | M | String |
+
+#### Response
+
+Returns `HistoryResult` which is either:
+- `HistoryResult.SuccessUse` - Contains `UseCampaignResponse` and `ShowCode`
+- `HistoryResult.Error` - Contains error information
+
+#### Usage Examples
+
+```kotlin
+// Suspend
+val result = historyService.useRedeem("REDEEM_KEY_123")
+
+when (result) {
+    is HistoryResult.SuccessUse -> {
+        val code = result.nextStep.code
+        val expireIn = result.result.expireIn
+        showCodeDialog(result.nextStep as HistoryNextStep.ShowCode)
+    }
+    is HistoryResult.Error -> {
+        showError(result.error.error?.message)
+    }
+    else -> {}
+}
+
+// Callback
+historyService.useRedeem(redeemKey) { result ->
+    when (result) {
+        is HistoryResult.SuccessUse -> showCode(result.nextStep)
+        is HistoryResult.Error -> showError(result.error)
+        else -> {}
+    }
+}
+```
+
+---
+
 ### processRedeem
 
-Process a redeemed item when user clicks on it. This method fetches the latest data from inquiry API and determines the appropriate next action. **Always use this method when user clicks on a history item.**
+Get inquiry data for a redeem key. Calls the inquiry API to get updated Purchase data.
 
-> **Important:** Data from `getHistory()` list may have incorrect values (e.g., `isRequireUniqueSerial`, `isNotAutoUse`, `isUsed`, `serial`, `barcode`, `expireIn`). This method fetches correct data from inquiry API before determining the action.
+> **Note:** Data from `getHistory()` may be stale. Use this to get current data.
+
+#### Request Parameters
+
+| Field Name | Description | Mandatory | Data Type |
+|------------|-------------|-----------|--------|
+| redeemKey | The redeem key to get inquiry data for | M | String |
+
+#### Response
+
+Returns `HistoryResult` which is either:
+- `HistoryResult.SuccessInquiryHistory` - Contains updated `Purchase`
+- `HistoryResult.Error` - Contains error information
+
+#### Usage Examples
+
+```kotlin
+// Suspend
+val result = historyService.processRedeem("REDEEM_KEY_123")
+
+when (result) {
+    is HistoryResult.SuccessInquiryHistory -> {
+        val updatedPurchase = result.result
+        updateUI(updatedPurchase)
+    }
+    is HistoryResult.Error -> {
+        showError(result.error.error?.message)
+    }
+    else -> {}
+}
+
+// Callback
+historyService.processRedeem(redeemKey) { result ->
+    when (result) {
+        is HistoryResult.SuccessInquiryHistory -> updateUI(result.result)
+        is HistoryResult.Error -> showError(result.error)
+        else -> {}
+    }
+}
+```
+
+---
+
+### processRedeemAction
+
+Process redeem action to determine next step. Called when user clicks on a history item.
+
+> **Important:** Data from `getHistory()` list may have incorrect values. This method fetches correct data from inquiry API before determining the action.
 
 #### Request Parameters
 
@@ -325,11 +552,10 @@ sealed class HistoryNextStep : Parcelable {
 
 ```kotlin
 // Suspend
-val result = historyService.processRedeem(purchase)
+val result = historyService.processRedeemAction(purchase)
 
 when (result) {
     is HistoryResult.SuccessProcessRedeem -> {
-        // purchase in result has correct data from inquiry API
         when (val nextStep = result.nextStep) {
             is HistoryNextStep.ShowCode -> {
                 // Show code directly (already used or auto-use)
@@ -342,14 +568,14 @@ when (result) {
                 )
             }
             is HistoryNextStep.ShowConfirmUse -> {
-                // Show confirm dialog, then call use() if confirmed
+                // Show confirm dialog, then call useNow() if confirmed
                 showConfirmUseDialog(
                     purchase = nextStep.purchase,
                     onConfirm = {
-                        // User confirmed, now call use() API
-                        historyService.use(nextStep.purchase) { useResult ->
+                        // User confirmed, call useNow()
+                        historyService.useNow(nextStep.purchase) { useResult ->
                             when (useResult) {
-                                is HistoryResult.SuccessUse -> {
+                                is HistoryResult.SuccessProcessRedeem -> {
                                     showCodeDialog(useResult.nextStep as HistoryNextStep.ShowCode)
                                 }
                                 is HistoryResult.Error -> showError(useResult.error)
@@ -378,7 +604,7 @@ when (result) {
 }
 
 // Callback
-historyService.processRedeem(purchase) { result ->
+historyService.processRedeemAction(purchase) { result ->
     when (result) {
         is HistoryResult.SuccessProcessRedeem -> handleNextStep(result.nextStep)
         is HistoryResult.Error -> showError(result.error.error?.message)
@@ -389,23 +615,27 @@ historyService.processRedeem(purchase) { result ->
 
 ---
 
-### use
+### useNow
 
-Calls the Use API to mark a voucher as used. **Only call this after user confirms in ShowConfirmUse dialog.**
+Use redeem and get updated data. Convenience method for "Use Now" action.
 
-> **Note:** For most cases, use `processRedeem()` first. Only call `use()` when:
-> - User confirms "Use Now" in the confirm dialog (from `ShowConfirmUse` next step)
+**Combines:**
+1. `useRedeem()` - Activate the code
+2. `processRedeem()` - Get updated inquiry data
+3. Return `ShowCode` with fresh data **Only call this after user confirms in ShowConfirmUse dialog.**
+
+
 
 #### Request Parameters
 
 | Field Name | Description | Mandatory | Data Type |
 |------------|-------------|-----------|-----------|
-| purchase | Purchase object (preferably from processRedeem result) | M | Purchase |
+| purchase | Purchase object | M | Purchase |
 
 #### Response
 
 Returns `HistoryResult` which is either:
-- `HistoryResult.SuccessUse` - Contains `purchase` and `nextStep` (ShowCode)
+- `HistoryResult.SuccessProcessRedeem` - Contains updated `Purchase` and `ShowCode`
 - `HistoryResult.Error` - Contains error information
 
 #### Usage Example
@@ -414,14 +644,16 @@ Returns `HistoryResult` which is either:
 // Called after user confirms in ShowConfirmUse dialog
 fun onUserConfirmUse(purchase: Purchase) {
     viewModelScope.launch {
-        when (val result = historyService.use(purchase)) {
-            is HistoryResult.SuccessUse -> {
+        when (val result = historyService.useNow(purchase)) {
+            is HistoryResult.SuccessProcessRedeem -> {
                 val showCode = result.nextStep as HistoryNextStep.ShowCode
+                val updatedPurchase = result.result
                 showCodeDialog(
                     code = showCode.code,
                     barcode = showCode.barcode,
                     hasCountdown = showCode.hasCountdown,
-                    countdownSeconds = showCode.countdownSeconds
+                    countdownSeconds = showCode.countdownSeconds,
+                    purchase = updatedPurchase
                 )
             }
             is HistoryResult.Error -> {
@@ -719,7 +951,7 @@ class HistoryViewModel : ViewModel() {
     val purchases: StateFlow<List<Purchase>> = _purchases.asStateFlow()
     
     init {
-        historyService.setDisplayTexts(HistoryExtractorConfig.THAI)
+        historyService.setConfig(HistoryConfigBuilder.thai())
     }
     
     fun loadHistory() {
@@ -734,11 +966,11 @@ class HistoryViewModel : ViewModel() {
     }
     
     /**
-     * Process item when user clicks - fetches correct data from inquiry API
+     * Process item when user clicks
      */
     fun processItem(purchase: Purchase, onNextStep: (HistoryNextStep) -> Unit) {
         viewModelScope.launch {
-            when (val result = historyService.processRedeem(purchase)) {
+            when (val result = historyService.processRedeemAction(purchase)) {
                 is HistoryResult.SuccessProcessRedeem -> onNextStep(result.nextStep)
                 is HistoryResult.Error -> { /* handle error */ }
                 else -> {}
@@ -747,12 +979,12 @@ class HistoryViewModel : ViewModel() {
     }
     
     /**
-     * Call use API after user confirms - only for ShowConfirmUse flow
+     * Use now after user confirms
      */
     fun confirmUse(purchase: Purchase, onShowCode: (HistoryNextStep.ShowCode) -> Unit) {
         viewModelScope.launch {
-            when (val result = historyService.use(purchase)) {
-                is HistoryResult.SuccessUse -> {
+            when (val result = historyService.useNow(purchase)) {
+                is HistoryResult.SuccessProcessRedeem -> {
                     (result.nextStep as? HistoryNextStep.ShowCode)?.let { onShowCode(it) }
                 }
                 is HistoryResult.Error -> { /* handle error */ }
@@ -767,7 +999,7 @@ class HistoryViewModel : ViewModel() {
 
 ```kotlin
 fun handleActionClick(purchase: Purchase, viewModel: HistoryViewModel) {
-    // Always use processRedeem when user clicks on item
+    // Use processRedeemAction when user clicks on item
     viewModel.processItem(purchase) { nextStep ->
         when (nextStep) {
             is HistoryNextStep.ShowCode -> {
@@ -779,7 +1011,7 @@ fun handleActionClick(purchase: Purchase, viewModel: HistoryViewModel) {
                 showConfirmDialog(
                     purchase = nextStep.purchase,
                     onConfirm = {
-                        // User confirmed, call use() API
+                        // User confirmed, call useNow()
                         viewModel.confirmUse(nextStep.purchase) { showCode ->
                             showCodeDialog(showCode)
                         }
@@ -948,11 +1180,11 @@ fun ActionButton(
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Standard Campaign (FREE/DEAL) - processRedeem Flow
+### Standard Campaign (FREE/DEAL) - processRedeemAction Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ User clicks → processRedeem() → Fetch Inquiry API               │
+│ User clicks → processRedeemAction() → Fetch Inquiry API         │
 ├─────────────────────────────────────────────────────────────────┤
 │ IsNotAutoUse = true (ไม่ Auto Use)                              │
 │   ├─ IsRequireUniqueSerial = true  → ShowCode                   │
@@ -974,7 +1206,7 @@ fun ActionButton(
 │   → displayStatus: DrawWinner(config.drawStatusWinner, privilege)    │
 │   → displayType: Draw(isWinner = true)  ← Winner can click           │
 │   → buttonLabel: config.buttonShowInfo                               │
-│   → processRedeem() → ShowInformation                                │
+│   → processRedeemAction() → ShowInformation                          │
 ├──────────────────────────────────────────────────────────────────────┤
 │ hasWinner && !isWinner                                               │
 │   → displayStatus: DrawNotWinner(config.drawStatusNotWinner)         │
@@ -1008,11 +1240,11 @@ Delivery items only show status and tracking information. **No action button is 
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Interface Campaign - processRedeem Flow
+### Interface Campaign - processRedeemAction Flow
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ User clicks → processRedeem()                                        │
+│ User clicks → processRedeemAction()                                  │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LINE Sticker (website contains "linesticker")                        │
 │   → OpenWebsite(url)                                                 │
@@ -1033,9 +1265,11 @@ The HistoryUseCase provides comprehensive purchase and redemption history manage
 
 **Key Features:**
 
-- **`setDisplayTexts()` method** - Configure all display texts once, use everywhere
-- **`processRedeem()` method** - Fetches correct data from inquiry API and determines next action
-- **`use()` method** - Calls Use API after user confirms
+- **`setConfig()` method** - Configure all display texts once, use everywhere
+- **`useRedeem()` method** - Direct use API call to activate code
+- **`processRedeem()` method** - Get inquiry data for a redeem key
+- **`processRedeemAction()` method** - Determine next action when user clicks
+- **`useNow()` method** - Convenience method combining use + inquiry
 - **Structured Display Type System** - `BzbsRedeemCampaignDisplayType` determines UI behavior
 - **Pre-computed Display Fields** - Status labels, button labels use configured texts
 - **Next Step Actions** - Clear result types (ShowCode, ShowConfirmUse, OpenWebsite, ShowTransferPointDialog, ShowInformation)
@@ -1046,8 +1280,10 @@ The HistoryUseCase provides comprehensive purchase and redemption history manage
 **Architecture Highlights:**
 
 - `getHistory()` returns list with display data (but some fields may be incorrect)
-- `processRedeem()` fetches correct data from inquiry API and returns `HistoryNextStep`
-- `use()` calls Use API and returns `ShowCode` (only for confirm use flow)
+- `useRedeem()` calls use API and returns `UseCampaignResponse` with `ShowCode`
+- `processRedeem()` gets inquiry data and returns updated `Purchase`
+- `processRedeemAction()` determines next action and returns `HistoryNextStep`
+- `useNow()` combines use + inquiry, returns `Purchase` with `ShowCode`
 - `displayType` determines what UI to show and whether item can be clicked
 - `displayStatus` provides the primary status badge (Redeemed, Used, Expired, Draw states)
 - `displayDeliveryStatus` provides secondary delivery badge (Preparing, Shipped)
@@ -1058,8 +1294,10 @@ The HistoryUseCase provides comprehensive purchase and redemption history manage
 | Scenario | Method to Use |
 |----------|---------------|
 | Load history list | `getHistory()` |
-| User clicks on item | `processRedeem()` |
-| User confirms "Use Now" | `use()` |
+| User clicks on item | `processRedeemAction()` |
+| User confirms "Use Now" | `useNow()` |
+| Direct use API call | `useRedeem()` |
+| Get inquiry data | `processRedeem()` |
 | Get delivery address | `getRedeemAddress()` |
 
 **Direct Access Pattern:**

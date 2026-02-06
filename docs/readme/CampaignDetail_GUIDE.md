@@ -27,7 +27,7 @@ The `CampaignDetailUseCase` provides complete campaign detail management includi
 - Quantity management for BUY/DONATE campaigns
 - Unified redemption flow with next step guidance
 - Points query with caching
-- Localization support via `setDisplayTexts()`
+- Localization support via `setConfig()`
 
 ### Standard Campaign Flow
 
@@ -51,8 +51,8 @@ val campaignDetailService = BuzzebeesSDK.instance().campaignDetailUseCase
 ## Quick Start
 
 ```kotlin
-// 1. Set display texts once at initialization
-campaignDetailService.setDisplayTexts(CampaignDetailExtractorConfig.THAI)
+// 1. Set config once at initialization
+campaignDetailService.setConfig(CampaignConfigBuilder.thai())
 
 // 2. Get campaign detail
 val result = campaignDetailService.getCampaignDetail(id = "12345")
@@ -85,20 +85,20 @@ val redeemResult = campaignDetailService.redeem(mapOf())
 
 ## Configuration
 
-### setDisplayTexts
+### setConfig
 
-Set display texts configuration once at initialization. All button names, error messages, and condition alerts will use these texts automatically.
+Set display configuration once at initialization. All button names, error messages, and condition alerts will use these texts automatically.
 
 ```kotlin
-fun setDisplayTexts(config: CampaignDetailExtractorConfig)
-fun getDisplayTexts(): CampaignDetailExtractorConfig
+fun setConfig(builder: CampaignConfigBuilder)
 ```
 
 ### Available Presets
 
 ```kotlin
-CampaignDetailExtractorConfig.DEFAULT  // English
-CampaignDetailExtractorConfig.THAI     // Thai
+CampaignConfigBuilder.english()  // English (default)
+CampaignConfigBuilder.thai()     // Thai
+
 ```
 
 ### Configuration Fields
@@ -169,38 +169,112 @@ CampaignDetailExtractorConfig.THAI     // Thai
 | errorInvalidQuantity | "Invalid quantity" | "จำนวนไม่ถูกต้อง" |
 | errorInvalidCampaignType | "Invalid campaign type" | "ประเภทแคมเปญไม่ถูกต้อง" |
 
-### Helper Functions
+### Builder Methods
 
+#### Individual Setters
 ```kotlin
-// Format insufficient points error
-config.formatInsufficientPoints(required: Long, available: Long)
-// → "แต้มไม่เพียงพอ ต้องการ: 500, มี: 100"
+// Set individual button text
+builder.buttonText(ButtonType.REDEEM, "แลกเลย!")
 
-// Format only X available error
-config.formatOnlyXAvailable(available: Int)
-// → "เหลือเพียง 5 ชิ้น"
+// Set individual condition alert
+builder.conditionAlert(ConditionType.SOLD_OUT, "หมดแล้วจ้า 😢")
 
-// Format max donate allowed error
-config.formatMaxDonateAllowed(max: Int)
-// → "บริจาคได้สูงสุด 10"
+// Set individual error message
+builder.errorMessage(ErrorType.INSUFFICIENT_POINTS, "แต้มไม่พอจ้า")
 ```
+
+#### Batch Setters
+```kotlin
+// Set multiple button texts at once
+builder.buttonTexts(
+    redeem = "แลกเลย",
+    draw = "จับรางวัล"
+)
+
+// Set multiple condition alerts at once
+builder.conditionAlerts(
+    soldOut = "สินค้าหมด",
+    expired = "หมดอายุแล้ว"
+)
+```
+
+#### Preset Methods
+```kotlin
+// Apply Thai presets
+builder.thaiButtonTexts()
+builder.thaiConditionAlerts()
+builder.thaiErrorMessages()
+
+// Apply English presets
+builder.englishButtonTexts()
+builder.englishConditionAlerts()
+builder.englishErrorMessages()
+```
+
+### Available Enums
+
+#### ButtonType
+- `SHOP_NOW` - "Shop Now" button
+- `ADD_TO_CART` - "Add to Cart" button  
+- `TAKE_SURVEY` - Survey button
+- `OPEN` - "Open" button
+- `DRAW` - "Draw" button
+- `DONATE` - "Donate" button
+- `REDEEM` - "Redeem" button
+- `GET_POINTS` - "Get Points" button
+
+#### ConditionType
+- `SOLD_OUT` - Campaign sold out
+- `MAX_REDEMPTION` - Max redemption reached
+- `COOL_DOWN` - Cool down period
+- `CONDITION_INVALID` - Invalid condition
+- `SPONSOR_ONLY` - Sponsor only
+- `EXPIRED` - Campaign expired
+- `NOT_STARTED` - Not started yet
+- `APP_VERSION_EXPIRED` - App version expired
+- `TERMS_CONDITIONS` - Terms issue
+- `UNKNOWN` - Unknown error
+
+#### ErrorType
+- `NOT_AUTHENTICATED` - Not authenticated
+- `INSUFFICIENT_POINTS` - Insufficient points
+- `CAMPAIGN_EXPIRED` - Campaign expired
+- `CAMPAIGN_SOLD_OUT` - Campaign sold out
+- `VARIANT_OUT_OF_STOCK` - Variant out of stock
+- `SUB_VARIANT_OUT_OF_STOCK` - Sub-variant out of stock
+- `SELECT_VARIANT` - Please select variant
+- `SELECT_SUB_VARIANT` - Please select sub-variant
+- `SELECT_ADDRESS` - Please select address
+- `INVALID_ADDRESS` - Invalid address
+- `QUANTITY_MINIMUM` - Quantity minimum
+- `TOKEN_REQUIRED` - Token required
+- `ADD_TO_CART_FAILED` - Add to cart failed
+- And more... (see ErrorType enum)
 
 ### Usage Examples
 
 ```kotlin
 // Option 1: Use Thai language
-campaignDetailService.setDisplayTexts(CampaignDetailExtractorConfig.THAI)
+campaignDetailService.setConfig(CampaignConfigBuilder.thai())
 
 // Option 2: Use English (default)
-campaignDetailService.setDisplayTexts(CampaignDetailExtractorConfig.DEFAULT)
+campaignDetailService.setConfig(CampaignConfigBuilder.english())
 
-// Option 3: Custom some texts
-campaignDetailService.setDisplayTexts(
-    CampaignDetailExtractorConfig.THAI.copy(
-        buttonRedeem = "แลกสิทธิ์",
-        buttonShopNow = "ช้อปเลย",
-        errorCampaignSoldOut = "สินค้าหมดแล้วจ้า"
-    )
+// Option 3: Custom configuration - individual setters
+campaignDetailService.setConfig(
+    CampaignConfigBuilder.thai()
+        .buttonText(ButtonType.REDEEM, "แลกสิทธิ์")
+        .buttonText(ButtonType.SHOP_NOW, "ช้อปเลย")
+        .errorMessage(ErrorType.CAMPAIGN_SOLD_OUT, "สินค้าหมดแล้วจ้า")
+)
+
+// Option 4: Custom configuration - batch setters
+campaignDetailService.setConfig(
+    CampaignConfigBuilder.thai()
+        .buttonTexts(
+            redeem = "แลกสิทธิ์",
+            shopNow = "ช้อปเลย"
+        )
 )
 ```
 
@@ -214,8 +288,8 @@ class MyApp : Application() {
     override fun onCreate() {
         super.onCreate()
         BuzzebeesSDK.init(this, config)
-        BuzzebeesSDK.instance().campaignDetailUseCase.setDisplayTexts(
-            CampaignDetailExtractorConfig.THAI
+        BuzzebeesSDK.instance().campaignDetailUseCase.setConfig(
+            CampaignConfigBuilder.thai()
         )
     }
 }
