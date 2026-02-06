@@ -1312,3 +1312,11 @@ The HistoryUseCase provides comprehensive purchase and redemption history manage
 | Tracking number | `purchase.displayDeliveryStatus?.trackingNo` |
 | Privilege content | `purchase.displayStatus.privilegeContent` |
 | Button label | `purchase.buttonLabel` |
+
+---
+
+## Related Documentation
+
+- [SDK Comprehensive Guide](./SDK_COMPREHENSIVE_GUIDE.md) - Complete overview of all SDK capabilities
+- [CampaignUseCase Guide](./CampaignUseCase_GUIDE.md) - Campaign list operations
+- [CampaignDetail Guide](./CampaignDetail_GUIDE.md) - Campaign detail and redemption operations

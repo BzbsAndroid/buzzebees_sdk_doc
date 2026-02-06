@@ -1291,4 +1291,4 @@ sealed class CampaignDetailResult {
 
 - [SDK Comprehensive Guide](./SDK_COMPREHENSIVE_GUIDE.md) - Complete overview of all SDK capabilities
 - [CampaignUseCase Guide](./CampaignUseCase_GUIDE.md) - Campaign list operations
-- [History Guide](./History_GUIDE.md) - Redemption history operations
+- [HistoryUseCase Guide](./HistoryUseCase_GUIDE.md) - Redemption history operations
