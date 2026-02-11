@@ -1219,9 +1219,9 @@ fun handleNextStep(nextStep: CampaignDetailNextStep?) {
 | displayCampaignDescription | String | Normalized description |
 | displayConditions | String | Normalized conditions |
 | displayFullImageUrl | String? | Normalized image URL |
-| displayPictures | List<String> | Normalized pictures |
+| displayPictures | `List<String>` | Normalized pictures |
 | displayCampaignPoint | String | Formatted points display |
-| displayVariants | ArrayList<VariantOption>? | Normalized variants |
+| displayVariants | `ArrayList<VariantOption>?` | Normalized variants |
 
 #### Key Campaign Fields
 
