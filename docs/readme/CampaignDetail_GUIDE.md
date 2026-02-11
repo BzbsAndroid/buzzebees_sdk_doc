@@ -139,8 +139,8 @@ CampaignConfigBuilder.thai()     // Thai
 | errorCampaignExpired | "Campaign Expired" | "แคมเปญหมดอายุ" |
 | errorCampaignSoldOut | "Campaign sold out" | "สินค้าหมด" |
 | errorCampaignNotLoaded | "Campaign not loaded" | "ไม่พบข้อมูลแคมเปญ" |
-| errorVariantOnlyForBuy | "Variant selection only for BUY campaigns" | "เลือกตัวเลือกได้เฉพาะแคมเปญซื้อ" |
-| errorSubVariantOnlyForBuy | "Sub-variant selection only for BUY campaigns" | "เลือกตัวเลือกย่อยได้เฉพาะแคมเปญซื้อ" |
+| errorVariantOnlyForBuy | "Variant selection only for BUY campaigns" | "เลือกตัวเลือกได้เฉพาะสินค้าประเภทซื้อ" |
+| errorSubVariantOnlyForBuy | "Sub-variant selection only for BUY campaigns" | "เลือกตัวเลือกย่อยได้เฉพาะสินค้าประเภทซื้อ" |
 | errorVariantOutOfStock | "Selected variant is out of stock" | "ตัวเลือกที่เลือกหมด" |
 | errorSubVariantOutOfStock | "Selected sub-variant is out of stock" | "ตัวเลือกย่อยที่เลือกหมด" |
 | errorSelectVariantFirst | "Please select a variant first" | "กรุณาเลือกตัวเลือกหลักก่อน" |
@@ -153,11 +153,11 @@ CampaignConfigBuilder.thai()     // Thai
 
 | Field | English (Default) | Thai |
 |-------|-------------------|------|
-| errorAddressNotRequired | "Address not required for this campaign" | "แคมเปญนี้ไม่ต้องระบุที่อยู่" |
+| errorAddressNotRequired | "Address not required for this campaign" | "ไม่ต้องเลือกที่อยู่สำหรับแคมเปญนี้" |
 | errorInvalidAddress | "Invalid address" | "ที่อยู่ไม่ถูกต้อง" |
 | errorInvalidAddressSelected | "Invalid address selected" | "ที่อยู่ที่เลือกไม่ถูกต้อง" |
 | errorSelectAddress | "Please select a delivery address" | "กรุณาเลือกที่อยู่จัดส่ง" |
-| errorAddressRequired | "Address is required" | "กรุณาระบุที่อยู่จัดส่ง" |
+| errorAddressRequired | "Address is required" | "กรุณาระบุที่อยู่" |
 
 #### Selection Validation Errors
 
@@ -240,16 +240,29 @@ builder.englishErrorMessages()
 - `INSUFFICIENT_POINTS` - Insufficient points
 - `CAMPAIGN_EXPIRED` - Campaign expired
 - `CAMPAIGN_SOLD_OUT` - Campaign sold out
+- `CAMPAIGN_NOT_LOADED` - Campaign not loaded
+- `VARIANT_ONLY_FOR_BUY` - Variant only for BUY
+- `SUB_VARIANT_ONLY_FOR_BUY` - Sub-variant only for BUY
 - `VARIANT_OUT_OF_STOCK` - Variant out of stock
 - `SUB_VARIANT_OUT_OF_STOCK` - Sub-variant out of stock
-- `SELECT_VARIANT` - Please select variant
-- `SELECT_SUB_VARIANT` - Please select sub-variant
-- `SELECT_ADDRESS` - Please select address
+- `SELECT_VARIANT_FIRST` - Must select variant first
+- `ADDRESS_NOT_REQUIRED` - Address not required
 - `INVALID_ADDRESS` - Invalid address
 - `QUANTITY_MINIMUM` - Quantity minimum
+- `ONLY_X_AVAILABLE` - Only X items available
+- `MAX_DONATE_ALLOWED` - Max donate exceeded
+- `SELECT_ADDRESS` - Please select address
+- `INVALID_ADDRESS_SELECTED` - Invalid address selected
+- `SELECT_VARIANT` - Please select variant
+- `SELECT_SUB_VARIANT` - Please select sub-variant
 - `TOKEN_REQUIRED` - Token required
 - `ADD_TO_CART_FAILED` - Add to cart failed
-- And more... (see ErrorType enum)
+- `INVALID_CAMPAIGN_TYPE` - Invalid campaign type
+- `ADDRESS_REQUIRED` - Address required
+- `INVALID_VARIANT` - Invalid variant
+- `INVALID_QUANTITY` - Invalid quantity
+- `REDEEM_KEY_REQUIRED` - Redeem key required
+- `REDEEM_KEY_NOT_FOUND` - Redeem key not found
 
 ### Usage Examples
 
@@ -378,7 +391,7 @@ fun redeem(options: Map<String, String> = mapOf(), callback: (CampaignDetailResu
 
 #### Response
 
-Returns `CampaignDetailResult.SuccessRedeem` with `RedeemResponse` and `NextStep` on success.
+Returns `CampaignDetailResult.SuccessRedeem` with `RedeemResponse` and `CampaignDetailNextStep` on success.
 
 #### Example
 
@@ -386,7 +399,7 @@ Returns `CampaignDetailResult.SuccessRedeem` with `RedeemResponse` and `NextStep
 campaignDetailService.redeem(mapOf()) { result ->
     when (result) {
         is CampaignDetailResult.SuccessRedeem -> {
-            handleNextStep(result.nextStep)
+            handleNextStep(result.campaignDetailNextStep)
         }
         is CampaignDetailResult.Error -> {
             showError(result.error.message)
@@ -399,7 +412,7 @@ campaignDetailService.redeem(mapOf()) { result ->
 
 ### use
 
-Activates the redemption and generates the usage code. Call this when user taps "Use Now" after receiving `NextStep.ShowConfirmUse`.
+Activates the redemption and generates the usage code. Call this when user taps "Use Now" after receiving `CampaignDetailNextStep.ShowConfirmUse`.
 
 Uses the cached `redeemKey` from the previous `redeem()` call. **No parameters needed** - SDK manages the redeemKey internally.
 
@@ -413,7 +426,7 @@ fun use(callback: (CampaignDetailResult) -> Unit)
 
 #### Response
 
-Returns `CampaignDetailResult.SuccessUse` with `NextStep.ShowCode` on success.
+Returns `CampaignDetailResult.SuccessUse` with `CampaignDetailNextStep.ShowCode` on success.
 
 #### "Use Later" Handling
 
@@ -427,15 +440,20 @@ When user chooses "Use Later", **no SDK call is needed**. Simply:
 
 ```kotlin
 when (nextStep) {
-    is NextStep.ShowConfirmUse -> {
+    is CampaignDetailNextStep.ShowConfirmUse -> {
         showConfirmDialog(
             onUseNow = {
                 // Call use() - no parameter needed, SDK uses cached redeemKey
                 campaignDetailService.use { result ->
                     when (result) {
                         is CampaignDetailResult.SuccessUse -> {
-                            val showCode = result.nextStep as? NextStep.ShowCode
-                            showCodeScreen(showCode?.code)
+                            val showCode = result.campaignDetailNextStep as? CampaignDetailNextStep.ShowCode
+                            showCodeScreen(
+                                code = showCode?.code,
+                                barcode = showCode?.barcode,
+                                hasCountdown = showCode?.hasCountdown ?: false,
+                                countdownSeconds = showCode?.countdownSeconds
+                            )
                         }
                         is CampaignDetailResult.Error -> showError(result.error.message)
                     }
@@ -803,62 +821,46 @@ fun handleValidationError(message: String?) {
 
 ## Redemption Flow Logic
 
-### NextStep - Post-Redemption Flow
+### CampaignDetailNextStep - Post-Redemption Flow
 
-After successful redemption, handle the `NextStep` to show appropriate UI:
+After successful redemption, handle the `CampaignDetailNextStep` to show appropriate UI:
 
 ```kotlin
-sealed class NextStep {
-    data class ShowCode(
-        val redeemKey: String, 
-        val code: String, 
-        val campaignId: String
-    ) : NextStep()
-    
-    data class ShowConfirmUse(
-        val redeemKey: String, 
-        val campaignId: String
-    ) : NextStep()
-    
-    data class ShowRedeemSuccess(
-        val redeemKey: String, 
-        val campaignId: String
-    ) : NextStep()
-    
-    data class ShowPointsEarned(
-        val redeemKey: String, 
-        val pointsEarned: Double, 
-        val campaignId: String
-    ) : NextStep()
-    
-    data class ShowDrawSuccess(
-        val redeemKey: String, 
-        val campaignId: String, 
-        val code: String?,           // Serial code (nullable)
-        val pointsEarned: Double?    // Points if pointType = GET (nullable)
-    ) : NextStep()
-    
+sealed class CampaignDetailNextStep {
+
+    /** Item added to shopping cart successfully. */
     data class ShowAddToCartSuccess(
-        val cartUrl: String?
-    ) : NextStep()
-    
-    data class SelectDeliveryAddress(
-        val campaignId: String, 
-        val redeemKey: String
-    ) : NextStep()
-    
-    data class OpenWebsite(
-        val url: String, 
-        val urlType: String          // "survey", "website", or "media"
-    ) : NextStep()
-    
-    data class Error(
-        val redeemKey: String?, 
-        val errorMessage: String, 
+        val cartUrl: String? = null
+    ) : CampaignDetailNextStep()
+
+    /** Show redemption code to user. */
+    data class ShowCode(
+        val code: String,
+        val barcode: String?,
+        val hasCountdown: Boolean,
+        val countdownSeconds: Long?,
+        val redeemDate: Long?
+    ) : CampaignDetailNextStep()
+
+    /** Show confirm use dialog - ask user to use now or later. */
+    data class ShowConfirmUse(
+        val redeemKey: String,
         val campaignId: String
-    ) : NextStep()
-    
-    object Complete : NextStep()
+    ) : CampaignDetailNextStep()
+
+    /**
+     * Redeem success - show information screen.
+     * Used for delivery campaigns, draw/donate campaigns, get points campaigns, etc.
+     */
+    data class ShowInformation(
+        val campaignDetail: CampaignDetails
+    ) : CampaignDetailNextStep()
+
+    /** Open website URL in browser or custom tabs. */
+    data class OpenWebsite(
+        val url: String,
+        val urlType: String   // "survey", "website", or "media"
+    ) : CampaignDetailNextStep()
 }
 ```
 
@@ -866,19 +868,35 @@ sealed class NextStep {
 
 The SDK determines the next step based on campaign configuration and response:
 
+#### For Delivery Campaigns (delivered = true)
+
+```
+redeem() → ShowInformation(campaignDetails)
+```
+Delivery campaigns always return `ShowInformation` directly, skipping all other logic.
+
 #### For DRAW and DONATE Campaigns
 
 ```
-redeem() → ShowDrawSuccess
-├── code = response.serial (if available)
-└── pointsEarned = pointPerUnit (if pointType = GET)
+redeem() → ShowInformation(campaignDetails)
 ```
 
 #### For GET Points Campaigns (pointType = GET)
 
 ```
-redeem() → ShowPointsEarned
-└── pointsEarned = response.pointPerUnit or campaign.pointPerUnit
+redeem() → ShowInformation(campaignDetails)
+```
+
+#### For BUY / MARKETPLACE_PRIVILEGE Campaigns
+
+```
+redeem() → ShowAddToCartSuccess(cartUrl)
+```
+
+#### For INTERFACE / MEDIA / NEWS Campaigns
+
+```
+redeem() → OpenWebsite(url, urlType)
 ```
 
 #### For Standard Redemptions (4-Case Logic)
@@ -907,27 +925,39 @@ val isRequireUniqueSerial = campaign.isRequireUniqueSerial ?: false
 val isUsed = response.isUsed ?: false
 
 return when {
-    isNotAutoUse && isRequireUniqueSerial -> NextStep.ShowCode(...)
-    isNotAutoUse -> NextStep.ShowConfirmUse(...)
-    isUsed -> NextStep.ShowCode(...)
-    else -> NextStep.ShowConfirmUse(...)
+    isNotAutoUse && isRequireUniqueSerial -> CampaignDetailNextStep.ShowCode(...)
+    isNotAutoUse -> CampaignDetailNextStep.ShowConfirmUse(...)
+    isUsed -> CampaignDetailNextStep.ShowCode(...)
+    else -> CampaignDetailNextStep.ShowConfirmUse(...)
 }
 ```
+
+#### ShowCode Details
+
+When `ShowCode` is returned, it includes:
+- `code` - The redemption code (redeemKey)
+- `barcode` - The serial/barcode value
+- `hasCountdown` - Whether a countdown timer should be shown (`minutesValidAfterUsed > 0`)
+- `countdownSeconds` - Countdown duration in seconds (null if no countdown)
+- `redeemDate` - The redeem date timestamp
 
 ### Flow Diagram
 
 ```
 redeem()
-├── DRAW / DONATE Campaign
-│   └── ShowDrawSuccess(code?, pointsEarned?)
+├── Delivery Campaign (delivered = true)
+│   └── ShowInformation(campaignDetails)
+│
+├── DRAW (0) / DONATE (20) Campaign
+│   └── ShowInformation(campaignDetails)
 │
 ├── pointType = GET
-│   └── ShowPointsEarned(pointsEarned)
+│   └── ShowInformation(campaignDetails)
 │
-├── BUY / MARKETPLACE_PRIVILEGE Campaign
+├── BUY (3) / MARKETPLACE_PRIVILEGE (33) Campaign
 │   └── ShowAddToCartSuccess(cartUrl)
 │
-├── INTERFACE / MEDIA / NEWS Campaign
+├── INTERFACE (8) / MEDIA (10) / NEWS (16) Campaign
 │   └── OpenWebsite(url, urlType)
 │
 └── Standard Campaign
@@ -1002,8 +1032,9 @@ class BuyCampaignViewModel {
         campaignDetail.redeem(mapOf()) { result ->
             when (result) {
                 is CampaignDetailResult.SuccessRedeem -> {
-                    if (result.nextStep is NextStep.ShowAddToCartSuccess) {
-                        showCartSuccess(result.nextStep.cartUrl)
+                    val nextStep = result.campaignDetailNextStep
+                    if (nextStep is CampaignDetailNextStep.ShowAddToCartSuccess) {
+                        showCartSuccess(nextStep.cartUrl)
                     }
                 }
                 is CampaignDetailResult.Error -> handleError(result.error)
@@ -1051,12 +1082,9 @@ class DonateCampaignViewModel {
         campaignDetail.redeem(mapOf()) { result ->
             when (result) {
                 is CampaignDetailResult.SuccessRedeem -> {
-                    if (result.nextStep is NextStep.ShowDrawSuccess) {
-                        val step = result.nextStep as NextStep.ShowDrawSuccess
-                        showDonateSuccess(
-                            serial = step.code,
-                            pointsEarned = step.pointsEarned
-                        )
+                    val nextStep = result.campaignDetailNextStep
+                    if (nextStep is CampaignDetailNextStep.ShowInformation) {
+                        showDonateSuccess(nextStep.campaignDetail)
                     }
                 }
                 is CampaignDetailResult.Error -> handleError(result.error)
@@ -1102,7 +1130,7 @@ class DeliveryCampaignViewModel {
         campaignDetail.redeem(mapOf()) { result ->
             when (result) {
                 is CampaignDetailResult.SuccessRedeem -> {
-                    handleRedeemSuccess(result.nextStep)
+                    handleNextStep(result.campaignDetailNextStep)
                 }
                 is CampaignDetailResult.Error -> handleError(result.error)
             }
@@ -1116,20 +1144,34 @@ class DeliveryCampaignViewModel {
 ### Complete NextStep Handler
 
 ```kotlin
-fun handleNextStep(nextStep: NextStep?) {
+fun handleNextStep(nextStep: CampaignDetailNextStep?) {
     when (nextStep) {
-        is NextStep.ShowCode -> {
-            showRedemptionCode(nextStep.code, nextStep.redeemKey)
+        is CampaignDetailNextStep.ShowCode -> {
+            showRedemptionCode(
+                code = nextStep.code,
+                barcode = nextStep.barcode,
+                hasCountdown = nextStep.hasCountdown,
+                countdownSeconds = nextStep.countdownSeconds,
+                redeemDate = nextStep.redeemDate
+            )
         }
-        is NextStep.ShowConfirmUse -> {
+        is CampaignDetailNextStep.ShowConfirmUse -> {
             // Show dialog for Use Now / Use Later
             showConfirmUseDialog(
                 onUseNow = {
                     campaignDetailService.use { result ->
                         when (result) {
                             is CampaignDetailResult.SuccessUse -> {
-                                val code = (result.nextStep as? NextStep.ShowCode)?.code
-                                showCodeScreen(code)
+                                val showCode = result.campaignDetailNextStep as? CampaignDetailNextStep.ShowCode
+                                showCode?.let {
+                                    showRedemptionCode(
+                                        code = it.code,
+                                        barcode = it.barcode,
+                                        hasCountdown = it.hasCountdown,
+                                        countdownSeconds = it.countdownSeconds,
+                                        redeemDate = it.redeemDate
+                                    )
+                                }
                             }
                             is CampaignDetailResult.Error -> showError(result.error.message)
                         }
@@ -1142,32 +1184,18 @@ fun handleNextStep(nextStep: NextStep?) {
                 }
             )
         }
-        is NextStep.ShowRedeemSuccess -> {
-            showSuccessScreen(nextStep.redeemKey)
+        is CampaignDetailNextStep.ShowInformation -> {
+            // Used for delivery, draw, donate, and get-points campaigns
+            showInformationScreen(nextStep.campaignDetail)
         }
-        is NextStep.ShowPointsEarned -> {
-            showPointsEarnedDialog(nextStep.pointsEarned)
-        }
-        is NextStep.ShowDrawSuccess -> {
-            showDrawSuccessDialog(
-                serial = nextStep.code,
-                pointsEarned = nextStep.pointsEarned
-            )
-        }
-        is NextStep.ShowAddToCartSuccess -> {
+        is CampaignDetailNextStep.ShowAddToCartSuccess -> {
             showCartSuccess()
             nextStep.cartUrl?.let { openCart(it) }
         }
-        is NextStep.SelectDeliveryAddress -> {
-            showAddressSelector(nextStep.redeemKey)
-        }
-        is NextStep.OpenWebsite -> {
+        is CampaignDetailNextStep.OpenWebsite -> {
             openWebView(nextStep.url, nextStep.urlType)
         }
-        is NextStep.Error -> {
-            showError(nextStep.errorMessage)
-        }
-        NextStep.Complete, null -> {
+        null -> {
             showSuccessMessage("Redemption successful!")
         }
     }
@@ -1191,9 +1219,9 @@ fun handleNextStep(nextStep: NextStep?) {
 | displayCampaignDescription | String | Normalized description |
 | displayConditions | String | Normalized conditions |
 | displayFullImageUrl | String? | Normalized image URL |
-| displayPictures | `List<String>` | Normalized pictures |
+| displayPictures | List<String> | Normalized pictures |
 | displayCampaignPoint | String | Formatted points display |
-| displayVariants | `ArrayList<VariantOption>?` | Normalized variants |
+| displayVariants | ArrayList<VariantOption>? | Normalized variants |
 
 #### Key Campaign Fields
 
@@ -1224,24 +1252,31 @@ sealed class CampaignDetailResult {
     
     data class SuccessRedeem(
         val result: RedeemResponse, 
-        var nextStep: NextStep?
+        var campaignDetailNextStep: CampaignDetailNextStep? = null
     ) : CampaignDetailResult()
     
     data class SuccessUse(
         val result: RedeemResponse, 
-        var nextStep: NextStep?
+        var campaignDetailNextStep: CampaignDetailNextStep? = null
     ) : CampaignDetailResult()
     
     data class Error(
         val error: ErrorResponse
     ) : CampaignDetailResult()
-    
-    data class SuccessMarketplacePrivilege(
-        val campaignDetail: CampaignDetails,
-        val maximumPartialPoints: Double?,
-        val maximumPartialPrice: Double?,
-        val redirectUrl: String
-    ) : CampaignDetailResult()
+}
+```
+
+---
+
+### CampaignDetailNextStep
+
+```kotlin
+sealed class CampaignDetailNextStep {
+    data class ShowAddToCartSuccess(val cartUrl: String? = null) : CampaignDetailNextStep()
+    data class ShowCode(val code: String, val barcode: String?, val hasCountdown: Boolean, val countdownSeconds: Long?, val redeemDate: Long?) : CampaignDetailNextStep()
+    data class ShowConfirmUse(val redeemKey: String, val campaignId: String) : CampaignDetailNextStep()
+    data class ShowInformation(val campaignDetail: CampaignDetails) : CampaignDetailNextStep()
+    data class OpenWebsite(val url: String, val urlType: String) : CampaignDetailNextStep()
 }
 ```
 
