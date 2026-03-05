@@ -99,7 +99,7 @@ val auth = BuzzebeesSDK.instance().auth
 ```kotlin
 
 // Suspend
-val result = auth.deviceLoginSuspend()
+val result = auth.loginDevice()
 
 // Callback
 auth.loginDevice { result ->
@@ -833,9 +833,9 @@ auth.resume { result ->
 
 - Request (caller-supplied)
 
-| Field Name | Description | Mandatory | Data Type |
-|------------|-------------|-----------|-----------|
-| -          | None        | -         | -         |
+| Field Name  | Description                   | Mandatory | Data Type |
+|-------------|-------------------------------|-----------|-----------|
+| deviceToken | FCM / push notification token | M         | String    |
 
 - Response  
   HTTP status: 204
@@ -846,10 +846,10 @@ auth.resume { result ->
 
 ```kotlin
 // Suspend
-val result = auth.updateDevice()
+val result = auth.updateDevice(deviceToken = "your_fcm_token")
 
 // Callback
-auth.updateDevice { result ->
+auth.updateDevice(deviceToken = "your_fcm_token") { result ->
     when (result) {
         is AuthResult.SuccessNoContent -> {
             // Handle successful device update
